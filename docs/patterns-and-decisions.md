@@ -413,14 +413,13 @@ Google Calendar API → IndexedDB (local). Event titles, descriptions, attendees
 
 **Key non-obvious facts:**
 - Supabase is NOT used in the extension — only in the metrics pipeline (`analytics/`).
-- Firebase is only used for the `submitDiagnostics` Cloud Function. The extension never touches Firestore or Realtime Database, and no event data leaves the device.
+- Firebase is only used for the `submitDiagnostics` Cloud Function, called by plain URL: the extension ships no Firebase SDK or web config (the auto-created Firebase browser API key was never used and was removed 2026-10-20 after GitHub secret scanning flagged it). The extension never touches Firestore or Realtime Database, and no event data leaves the device.
 - No external analytics or tracking (no GA, no Segment, etc.).
 
 #### Related Files
 
 - `src/lib/calendar-service.ts` — fetches from Google Calendar API, writes to IndexedDB
 - `src/lib/diagnostics-submit.ts` — sends the idToken and diagnostic report to the Firebase Cloud Function
-- `src/lib/firebase-config.ts` — config only, no Firebase SDK imported
 
 ---
 

@@ -3,7 +3,6 @@
  * Server error messages are surfaced verbatim.
  */
 
-import { firebaseConfig } from './firebase-config';
 import { getGoogleIdToken } from './google-auth';
 import type { DiagnosticsReport } from '../background/diagnostics-report';
 
@@ -12,15 +11,13 @@ export interface SubmitResult {
   discordFailed: boolean;
 }
 
-function getSubmitDiagnosticsUrl(): string {
-  return `https://us-central1-${firebaseConfig.projectId}.cloudfunctions.net/submitDiagnostics`;
-}
+const SUBMIT_DIAGNOSTICS_URL = 'https://us-central1-calens-chrome-ext.cloudfunctions.net/submitDiagnostics';
 
 export async function submitDiagnostics(report: DiagnosticsReport, note?: string): Promise<SubmitResult> {
   const idToken = await getGoogleIdToken();
   if (!idToken) throw new Error('Could not get a Google token. Please sign in again.');
 
-  const response = await fetch(getSubmitDiagnosticsUrl(), {
+  const response = await fetch(SUBMIT_DIAGNOSTICS_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ idToken, report, note: note || undefined }),

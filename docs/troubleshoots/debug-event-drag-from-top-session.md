@@ -61,7 +61,7 @@ document.addEventListener('mousedown', (e) => {
 
 The current decoding extracts the event ID but uses "primary" as the calendar ID.
 
-**Next Step**: Update [`background.ts`](../src/background.ts) to extract and use the correct calendar ID from the decoded event ID.
+**Next Step**: Update [`background.ts`](../src/background/index.ts) to extract and use the correct calendar ID from the decoded event ID.
 
 ## Current Status
 
@@ -79,7 +79,7 @@ The current decoding extracts the event ID but uses "primary" as the calendar ID
 
 ## Next Steps
 
-1. **Fix calendar ID extraction** in [`background.ts`](../src/background.ts):
+1. **Fix calendar ID extraction** in [`background.ts`](../src/background/index.ts):
    ```typescript
    // Current:
    const decoded = atob(encodedEventId);

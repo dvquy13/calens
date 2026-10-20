@@ -79,6 +79,7 @@ Maintainers and coding agents can also run live checks against a signed-in Googl
 - The [Google Calendar DOM notes](./docs/google-calendar-dom.md) record how Google Calendar's markup behaves, as verified live.
 - The [Chrome Extensions API Reference](./docs/chrome-extensions-api-ref.md) is downloaded from the Chrome Extension developer documentation.
 - The [Onboarding](./docs/set-up.md) covers first-time setup.
+- [Metrics](./docs/metrics.md), [Cloudflare deploys](./docs/cloudflare-deploy.md) and [Chrome Web Store releases](./docs/cws-deploy.md) cover the maintainer pipelines.
 
 ## License
 

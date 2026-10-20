@@ -1,6 +1,6 @@
 # Cloudflare Pages Deploy
 
-Calens uses Cloudflare Pages for both sites (migrated from Netlify 2026-04-19 — Netlify's credit system ran out from GitHub repo connections triggering Netlify-managed builds on every push).
+Calens uses Cloudflare Pages for both sites (migrated from Netlify on 2026-04-19).
 
 ## Projects
 

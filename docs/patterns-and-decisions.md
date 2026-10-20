@@ -98,7 +98,6 @@ The `toast()` function is not standalone - it communicates with the `<Toaster />
 
 - `src/content/toast.ts` - Custom DOM-based toast (current approach)
 - `src/content/event-enhancer.ts` - Content script using vanilla JS
-- `src/components/ui/sonner.tsx` - shadcn/ui wrapper (sidepanel only)
 - `vite.config.ts` - Build configuration
 
 #### References

@@ -183,32 +183,6 @@ All `type="default"` buttons on the landing page use a consistent hover that ani
 
 ---
 
-### Pricing card pattern (Supabase style)
-
-Key structural decisions:
-- Tier name in **UPPERCASE `font-mono`** (`text-xl font-normal uppercase`)
-- Price in **large mono** (`font-mono text-5xl leading-none`)
-- CTA button **inside each card**, above the price — not a single bottom button
-- Highlighted card: `border-foreground-muted border-2 md:-my-4 z-10` (extends vertically, thicker border)
-- Strikethrough original price stacked above the period, to the right of the large price:
-
-```tsx
-<div className="flex items-end gap-1.5">
-  <p className="font-mono text-5xl text-foreground leading-none">{displayPrice}</p>
-  <div className="flex flex-col items-start mb-0.5">
-    {hasPromotion && (
-      <span className="text-foreground-lighter text-xs line-through leading-tight">{originalPrice}</span>
-    )}
-    <span className="text-foreground-lighter text-[13px] leading-tight">{period}</span>
-  </div>
-</div>
-```
-
-- Badge (e.g. "Save 30%"): `bg-brand/10 border border-brand/30 text-brand-link rounded-md py-0.5 px-2 text-[11px]` — same palette as the `PromotionBanner`.
-- Period values use a space after the slash: `/ month`, `/ year`, `one-time`.
-
----
-
 ### Accent-color rules of thumb
 
 The single most important discipline inherited from supabase:

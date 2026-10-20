@@ -20,7 +20,7 @@ Google Calendar's DOM truncates group calendar IDs in the `data-eventid` attribu
 
 ### Solution Implemented
 
-**Fix**: Calendar ID reconstruction in `src/background.ts` (lines 158-166)
+**Fix**: Calendar ID reconstruction in `src/background/index.ts` (lines 158-166)
 
 ```typescript
 // Fix truncated calendar IDs (Google Calendar truncates in data-eventid)
@@ -35,8 +35,8 @@ if (calendarId.endsWith('@g')) {
 ```
 
 **Additional Changes**:
-- Enhanced error logging in `fetchEvent()` and `patchEvent()` (src/background.ts:223-240, 270-287)
-- Enhanced decoding logs in `handleUpdateEventStart()` (src/background.ts:140-168)
+- Enhanced error logging in `fetchEvent()` and `patchEvent()` (src/background/index.ts:223-240, 270-287)
+- Enhanced decoding logs in `handleUpdateEventStart()` (src/background/index.ts:140-168)
 - Frontend logging in event-enhancer.ts (lines 146-147)
 
 ### Investigation Process
@@ -90,7 +90,7 @@ Improved error handling in `fetchEvent()` and `patchEvent()` with detailed error
 ⏳ 7. Full testing with multiple calendar types pending
 
 ### Files Modified
-1. **src/background.ts**:
+1. **src/background/index.ts**:
    - Lines 140-168: Enhanced decoding logs + calendar ID reconstruction
    - Lines 223-240: Enhanced error logging in `fetchEvent()`
    - Lines 270-287: Enhanced error logging in `patchEvent()`
@@ -128,8 +128,8 @@ Improved error handling in `fetchEvent()` and `patchEvent()` with detailed error
 
 ### Phase 2: Calendar ID Investigation & Fix
 - `src/content/event-enhancer.ts` (around line 79 - add logging)
-- `src/background.ts` (lines 140-148 - add logging, then apply fix)
-- `src/background.ts` (lines 210-229 - improve error handling)
+- `src/background/index.ts` (lines 140-148 - add logging, then apply fix)
+- `src/background/index.ts` (lines 210-229 - improve error handling)
 
 ---
 

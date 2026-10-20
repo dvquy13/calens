@@ -45,7 +45,7 @@ See `./debug-default-drag-broken.md` for detailed systematic debugging process a
 ### Calendar ID Truncation in Event Updates
 
 **Date Resolved:** 2025-11-27
-**Component:** Chrome Extension - Background Service Worker (`src/background.ts`)
+**Component:** Chrome Extension - Background Service Worker (`src/background/index.ts`)
 
 **Problem:**
 Event top-edge drag updates failed with 404 errors when updating group calendar events. Google Calendar API rejected requests due to truncated calendar IDs.

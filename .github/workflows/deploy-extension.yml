@@ -1,0 +1,88 @@
+name: Deploy Extension to Chrome Web Store
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the e2e step's build-dev reads the latest v* tag (scripts/manifest-plugin.ts)
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm run test
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Install xvfb
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Run E2E tests
+        run: xvfb-run --auto-servernum -- npm run test:e2e
+
+      - name: Stamp version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" public/manifest.json
+          echo "Stamped version: $VERSION"
+
+      - name: Build extension
+        run: npm run build
+
+      - name: Create zip
+        run: cd dist && zip -r ../calens.zip .
+
+      - name: Get CWS access token
+        id: token
+        run: |
+          RESPONSE=$(curl -s -X POST https://oauth2.googleapis.com/token \
+            -d "client_id=${{ secrets.CWS_CLIENT_ID }}" \
+            -d "client_secret=${{ secrets.CWS_CLIENT_SECRET }}" \
+            -d "refresh_token=${{ secrets.CWS_REFRESH_TOKEN }}" \
+            -d "grant_type=refresh_token")
+          ACCESS_TOKEN=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+          echo "access_token=$ACCESS_TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Upload zip to Chrome Web Store
+        run: |
+          RESPONSE=$(curl -s -X PUT \
+            "https://www.googleapis.com/upload/chromewebstore/v1.1/items/${{ secrets.CWS_EXTENSION_ID }}" \
+            -H "Authorization: Bearer ${{ steps.token.outputs.access_token }}" \
+            -H "x-goog-api-version: 2" \
+            -T calens.zip)
+          echo "$RESPONSE"
+          STATUS=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('uploadState',''))")
+          if [ "$STATUS" != "SUCCESS" ]; then
+            echo "Upload failed with status: $STATUS"
+            exit 1
+          fi
+
+      - name: Submit for review
+        run: |
+          RESPONSE=$(curl -s -X POST \
+            "https://www.googleapis.com/chromewebstore/v1.1/items/${{ secrets.CWS_EXTENSION_ID }}/publish" \
+            -H "Authorization: Bearer ${{ steps.token.outputs.access_token }}" \
+            -H "x-goog-api-version: 2" \
+            -H "Content-Length: 0")
+          echo "$RESPONSE"
+          STATUS=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status',[''])[0])")
+          if [ "$STATUS" != "OK" ]; then
+            echo "Publish failed with status: $STATUS"
+            exit 1
+          fi

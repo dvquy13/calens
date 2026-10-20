@@ -1,0 +1,25 @@
+{
+  "name": "gsc_impressions_28d",
+  "description": "Google Search Console total impressions for calens.dev over the last 28 days",
+  "auth": {
+    "type": "oauth_adc",
+    "scopes": ["https://www.googleapis.com/auth/webmasters.readonly"],
+    "quota_project": "calens-chrome-ext"
+  },
+  "request": {
+    "url": "https://www.googleapis.com/webmasters/v3/sites/sc-domain%3Acalens.dev/searchAnalytics/query",
+    "method": "POST",
+    "body": {
+      "startDate": "{{today-28d}}",
+      "endDate": "{{today}}",
+      "searchType": "web"
+    }
+  },
+  "extract": {
+    "type": "jsonpath",
+    "path": "rows.0.impressions",
+    "cast": "int",
+    "default_value": 0
+  },
+  "validate": { "min": 0, "max": 10000000 }
+}

@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "calens-browser": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@0.0.83",
+        "--cdp-endpoint",
+        "http://127.0.0.1:9333",
+        "--output-dir",
+        "test-results/playwright-mcp"
+      ]
+    }
+  }
+}

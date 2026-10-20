@@ -1,0 +1,25 @@
+{
+  "name": "ga4_users_28d",
+  "description": "GA4 total users on calens.dev over the last 28 days (property 528344311)",
+  "auth": {
+    "type": "service_account",
+    "credentials_file": "credentials/calens-chrome-ext-firebase-adminsdk-fbsvc-c60db0742d.json",
+    "scopes": ["https://www.googleapis.com/auth/analytics.readonly"],
+    "quota_project": "calens-chrome-ext"
+  },
+  "request": {
+    "url": "https://analyticsdata.googleapis.com/v1beta/properties/528344311:runReport",
+    "method": "POST",
+    "body": {
+      "dateRanges": [{"startDate": "{{today-28d}}", "endDate": "{{today}}"}],
+      "metrics": [{"name": "totalUsers"}]
+    }
+  },
+  "extract": {
+    "type": "jsonpath",
+    "path": "rows.0.metricValues.0.value",
+    "cast": "int",
+    "default_value": 0
+  },
+  "validate": { "min": 0, "max": 10000000 }
+}

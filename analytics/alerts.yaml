@@ -1,0 +1,19 @@
+# Alert configuration for metrics-operationalize pipeline
+# Edited here; read by push-and-notify.py at runtime.
+
+discord:
+  webhook_url_env: DISCORD_WEBHOOK_URL
+  dashboard_url: https://dashboard.calens.dev
+
+alerts:
+  # Type 1: Any metric returns status=error → fire immediately
+  - type: failure
+
+  # Type 2: Daily digest — always fires; shows all metrics with delta vs previous run
+  - type: daily_digest
+    title: "Calens"
+    labels:
+      gsc_clicks_28d: "Clicks · 28d"
+      gsc_impressions_28d: "Impressions · 28d"
+      cws_users: "CWS Installs"
+      ga4_users_28d: "Visitors · 28d"

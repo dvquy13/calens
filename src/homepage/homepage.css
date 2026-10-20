@@ -1,0 +1,56 @@
+/* Override sidepanel constraints for homepage */
+body {
+  min-width: 100% !important;
+  min-height: 100vh !important;
+}
+
+/* Smooth scroll for entire page */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Offset for fixed navbar when scrolling to sections */
+#features,
+#open-source {
+  scroll-margin-top: 80px;
+}
+
+/* Gradient text using brand color */
+.gradient-text {
+  background: linear-gradient(135deg, hsl(var(--brand-default)) 0%, hsl(var(--brand-link)) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Gradient button with hover effects */
+.gradient-button {
+  background: linear-gradient(135deg, hsl(var(--brand-default)) 0%, hsl(var(--brand-link)) 100%);
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 6px hsl(var(--brand-default) / 0.2);
+}
+
+.gradient-button:hover {
+  background: linear-gradient(135deg, hsl(var(--brand-link)) 0%, hsl(var(--brand-default)) 100%);
+  box-shadow: 0 6px 12px hsl(var(--brand-default) / 0.3);
+  transform: translateY(-2px);
+}
+
+/* Bento card hover animations */
+.bento-card {
+  background: hsl(var(--background-surface-75));
+  border: 1px solid hsl(var(--border-default));
+  transition: all 0.3s ease;
+}
+
+.bento-card:hover {
+  background: hsl(var(--background-surface-100));
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.06);
+  transform: translateY(-4px);
+  border-color: hsl(var(--brand-default));
+}
+
+/* Smooth tooltip transitions */
+.tooltip-content {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}

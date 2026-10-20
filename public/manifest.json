@@ -1,0 +1,62 @@
+{
+  "manifest_version": 3,
+  "name": "Calens",
+  "version": "0.0.2.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqn5q6EYVDJvE4TdaVQNpztZK7FpnYurNE3PHuJiUtZiPpZRHMiFpGapKusncKxV2Yyd9VhW4KCa+mLaBgD1uqbP9rLNFR1FeA7Pi3HG4eIWNgP9fzoEW7Koxov8wSzdq/GnXlAQBKberK+jXOCEhB9n8iPE7bDSaDATQtP4Llfe2sDnESrUZDBa1Y+1LT86HfC7Kdng88bhIXXICZbgBu6CNUDiFGmMtVrFWgYDOre55J5wMN+IjAKVf68Z9uExLyMfzl3jnxI38wM24+B9u9QD2dLuhDbGZt9UBbSVQa+4w8Qq69VUMa9qqRJO/ce4R77lZP0UKISwoY22H3jCzywIDAQAB",
+  "description": "Google Calendar analytics, better editing experience, and on-device privacy",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "Open Calens"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": [
+    "storage",
+    "identity",
+    "sidePanel",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://www.googleapis.com/*",
+    "https://calendar.google.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://calendar.google.com/*"
+      ],
+      "js": [
+        "content/date-detector.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://calendar.google.com/*"
+      ],
+      "js": [
+        "content/event-enhancer.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "oauth2": {
+    "client_id": "680969445571-0dcnmtjefms66l9g9g7pqf5396mu3p39.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/calendar.readonly",
+      "https://www.googleapis.com/auth/calendar.events",
+      "https://www.googleapis.com/auth/userinfo.email",
+      "https://www.googleapis.com/auth/userinfo.profile"
+    ]
+  }
+}

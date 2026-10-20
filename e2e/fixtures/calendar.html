@@ -1,0 +1,21 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Google Calendar (fixture)</title></head>
+<body>
+  <!-- Real day columns are [role="gridcell"] (docs/google-calendar-dom.md). -->
+  <div id="calendar-grid" role="gridcell" aria-label="1 event, Tuesday, October 13">
+    <div role="button" data-eventchip data-eventid="ZXhpc3RpbmdldmVudCBwcmltYXJ5" style="width:100px;height:20px;">
+      Existing Event
+    </div>
+  </div>
+  <script>
+    // Appends markup built by e2e/fixtures/gcal-dom.ts into the grid, the way
+    // Google's own rendering adds event blocks. calendar-observer.ts's
+    // MutationObserver picks them up and schedules a real TRIGGER_SYNC.
+    window.appendToGrid = function (html) {
+      document.getElementById('calendar-grid').insertAdjacentHTML('beforeend', html);
+      return true;
+    };
+  </script>
+</body>
+</html>

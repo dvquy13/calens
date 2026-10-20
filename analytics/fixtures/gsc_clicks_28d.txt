@@ -1,0 +1,10 @@
+{
+  "rows": [
+    {
+      "clicks": 42,
+      "impressions": 1850,
+      "ctr": 0.0227,
+      "position": 18.3
+    }
+  ]
+}

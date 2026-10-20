@@ -1,0 +1,19 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // diagnosticReports/{id} and diagnosticRateLimits/{sha256(email)} are
+    // written exclusively by the submitDiagnostics Cloud Function via the
+    // Admin SDK (which bypasses these rules). Clients get no access.
+    match /diagnosticReports/{reportId} {
+      allow read, write: if false;
+    }
+    match /diagnosticRateLimits/{limitId} {
+      allow read, write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

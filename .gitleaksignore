@@ -1,0 +1,5 @@
+# Public by design, not secrets:
+# - the extension's RSA public key (pins the dev extension ID; ships in every installed copy)
+public/manifest.json:generic-api-key:5
+# - Firebase web API key (identifies the project; access is enforced by Firestore rules and function auth)
+src/lib/firebase-config.ts:gcp-api-key:2

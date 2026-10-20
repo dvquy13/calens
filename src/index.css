@@ -1,0 +1,202 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --radius: 0.5rem;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --brand: 205 100% 33%;
+    --brand-dark: 205 100% 26%;
+    --brand-light: 205 75% 55%;
+    --brand-lighter: 205 70% 80%;
+
+    /* design-kit semantic tokens */
+    --brand-default: 205 100% 33%;
+    --brand-link:    205 100% 26%;
+    --brand-600:     205 75% 55%;
+    --brand-500:     205 100% 33%;
+    --brand-400:     205 75% 65%;
+    --brand-300:     205 70% 80%;
+    --brand-200:     205 70% 92%;
+    --foreground-default:  0 0%  9%;
+    --foreground-light:    0 0% 32%;
+    --foreground-lighter:  0 0% 44%;
+    --foreground-muted:    0 0% 70%;
+    --foreground-contrast: 0 0% 98%;
+    --background-default:             0 0% 100%;
+    --background-alternative-default: 0 0%  99%;
+    --background-surface-75:          0 0% 100%;
+    --background-surface-100:         0 0%  99%;
+    --background-surface-200:         0 0%  95%;
+    --background-surface-300:         0 0%  93%;
+    --background-muted:               0 0%  97%;
+    --background-selection:           0 0%  93%;
+    --background-control:             0 0%  95%;
+    --background-overlay-default:     0 0% 100%;
+    --background-overlay-hover:       0 0%  95%;
+    --border-default:  0 0% 88%;
+    --border-muted:    0 0% 93%;
+    --border-strong:   0 0% 83%;
+    --border-stronger: 0 0% 56%;
+    --border-overlay:  0 0% 91%;
+    --border-control:  0 0% 78%;
+    --warning-default:     30 80% 48%;
+    --destructive-default: 10 78% 54%;
+    --destructive-600:     10 82% 44%;
+  }
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --brand: 204 79% 39%;
+    --brand-dark: 204 83% 31%;
+    --brand-light: 204 72% 66%;
+    --brand-lighter: 207 70% 87%;
+
+    --brand-link:    204 80% 55%;
+    --brand-500:     204 79% 30%;
+    --brand-400:     204 60% 20%;
+    --brand-300:     204 70% 14%;
+    --brand-200:     204 70%  8%;
+    --foreground-default:  0 0% 98%;
+    --foreground-light:    0 0% 71%;
+    --foreground-lighter:  0 0% 54%;
+    --foreground-muted:    0 0% 30%;
+    --foreground-contrast: 0 0%  9%;
+    --background-default:           0 0%  7%;
+    --background-surface-75:        0 0%  9%;
+    --background-surface-100:       0 0% 12%;
+    --background-surface-200:       0 0% 13%;
+    --background-surface-300:       0 0% 16%;
+    --background-muted:             0 0% 14%;
+    --background-selection:         0 0% 19%;
+    --background-control:           0 0% 14%;
+    --background-overlay-default:   0 0% 14%;
+    --background-overlay-hover:     0 0% 18%;
+    --border-default:  0 0% 18%;
+    --border-muted:    0 0% 14%;
+    --border-strong:   0 0% 21%;
+    --border-stronger: 0 0% 27%;
+    --border-overlay:  0 0% 20%;
+    --border-control:  0 0% 22%;
+    --warning-default:     39 100% 43%;
+    --destructive-600:     10  85% 63%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Google Sans Flex', sans-serif;
+    min-width: 400px;
+    min-height: 500px;
+  }
+}
+
+@layer components {
+  /* Lexical Checkbox Styling */
+  .lexical-checkbox-item {
+    position: relative;
+    margin-left: 0.5em;
+    margin-right: 0.5em;
+    padding-left: 1.5em;
+    list-style-type: none;
+    outline: none;
+    display: block;
+    min-height: 1.5em;
+  }
+
+  .lexical-checkbox-item::before {
+    content: '';
+    width: 0.9em;
+    height: 0.9em;
+    top: 0.2em;
+    left: 0;
+    cursor: pointer;
+    display: block;
+    position: absolute;
+    border: 1px solid hsl(var(--border));
+    border-radius: 2px;
+    background-color: hsl(var(--background));
+  }
+
+  .lexical-checkbox-checked::before {
+    border-color: hsl(var(--primary));
+    background-color: hsl(var(--primary));
+  }
+
+  .lexical-checkbox-checked::after {
+    content: '';
+    cursor: pointer;
+    border-color: hsl(var(--primary-foreground));
+    border-style: solid;
+    position: absolute;
+    display: block;
+    top: 0.35em;
+    width: 0.2em;
+    left: 0.35em;
+    height: 0.4em;
+    transform: rotate(45deg);
+    border-width: 0 0.1em 0.1em 0;
+  }
+
+  .lexical-checkbox-checked {
+    text-decoration: line-through;
+    opacity: 0.6;
+  }
+
+  /* Lexical Nested List Styling - ensure nested lists display correctly */
+  [data-lexical-editor] li > ul,
+  [data-lexical-editor] li > ol {
+    display: block;
+    margin-top: 0.25rem;
+  }
+}

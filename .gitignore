@@ -1,0 +1,61 @@
+# Local Claude settings
+.claude/settings.local.json
+
+# Metric extractor runtime credentials — never commit
+analytics/cookies/
+analytics/secrets/
+analytics/credentials/
+
+# Metric history snapshots — local only
+metrics-history.jsonl
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+_site/
+
+# Test coverage output
+coverage/
+
+# Playwright E2E output
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# Logs
+*.log
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env*.local
+
+*.zip
+.calens-extension.pem
+
+supabase/.temp/
+
+# Service account credentials (never commit)
+credentials/
+*.pem
+
+# Vendored third-party sources (reference only)
+docs/ext/
+
+# Playwright MCP output (calens-browser MCP writes to test-results/playwright-mcp)
+.playwright-mcp/
+
+__pycache__/

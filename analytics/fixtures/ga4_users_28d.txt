@@ -1,0 +1,24 @@
+{
+  "metricHeaders": [
+    {
+      "name": "totalUsers",
+      "type": "TYPE_INTEGER"
+    }
+  ],
+  "rows": [
+    {
+      "metricValues": [
+        {
+          "value": "5"
+        }
+      ]
+    }
+  ],
+  "rowCount": 1,
+  "metadata": {
+    "currencyCode": "USD",
+    "timeZone": "Asia/Saigon"
+  },
+  "kind": "analyticsData#runReport"
+}
+

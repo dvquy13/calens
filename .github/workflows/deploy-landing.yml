@@ -1,0 +1,42 @@
+name: Deploy Landing Page
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - homepage.html
+      - src/homepage/**
+      - src/index.css
+      - src/lib/links.ts
+      - tailwind.config.js
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Prepare deploy artifact
+        run: |
+          mkdir -p _site
+          cp -r dist/. _site/
+          cp _site/homepage.html _site/index.html
+
+      - name: Deploy to Cloudflare Pages
+        run: cd _site && npx wrangler pages deploy . --project-name=calens-landing --branch=main
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

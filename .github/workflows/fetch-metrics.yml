@@ -1,0 +1,65 @@
+name: Fetch Metrics Daily
+
+on:
+  schedule:
+    - cron: '13 20 * * *'  # 3:13am GMT+7 daily (off-peak)
+  workflow_dispatch:        # allow manual trigger from GitHub UI
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v8.0.0
+
+      # Google ADC credentials (for GSC — must stay as user credentials)
+      - name: Setup Google ADC
+        run: |
+          mkdir -p ~/.config/gcloud
+          echo '${{ secrets.GOOGLE_ADC_CREDENTIALS }}' \
+            > ~/.config/gcloud/application_default_credentials.json
+
+      # Service account key (for GA4 + Firebase)
+      - name: Setup service account key
+        run: |
+          mkdir -p analytics/credentials
+          echo '${{ secrets.GA4_SERVICE_ACCOUNT_JSON }}' \
+            > analytics/credentials/calens-chrome-ext-firebase-adminsdk-fbsvc-c60db0742d.json
+
+      # Fetch all metrics
+      - name: Fetch metrics
+        run: |
+          cd analytics
+          uv run scripts/fetch-metrics.py > /tmp/metrics.json
+        env:
+          GOOGLE_CLOUD_PROJECT: calens-chrome-ext   # needed by google-auth for ADC quota
+
+      # Push to Supabase + send Discord alerts
+      - name: Push to Supabase & notify
+        run: |
+          cd analytics
+          cat /tmp/metrics.json | uv run scripts/push-and-notify.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+
+      # Build deploy artifact: inject Supabase creds + stamp metrics snapshot for AI agents.
+      # dashboard.html in main stays clean (template only); stamp only lives in the artifact.
+      - name: Deploy to Cloudflare Pages
+        run: |
+          mkdir -p _site
+          sed -e "s|__SUPABASE_URL__|${SUPABASE_URL}|g" \
+              -e "s|__SUPABASE_KEY__|${SUPABASE_KEY}|g" \
+              dashboard.html > _site/index.html
+          python3 analytics/scripts/stamp-dashboard.py \
+            --snapshot /tmp/metrics.json \
+            --dashboard _site/index.html
+          cd _site && npx wrangler pages deploy . --project-name=calens-dashboard --branch=main
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_ANON_KEY }}

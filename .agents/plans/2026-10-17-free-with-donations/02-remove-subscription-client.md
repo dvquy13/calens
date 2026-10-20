@@ -1,14 +1,14 @@
 # 02 · Remove the subscription stack from the extension
 
 ## Tracker
-- [ ] Move `getGoogleIdToken` out of `subscription-service.ts`
-- [ ] Delete subscription/pricing/remote-config modules and components
-- [ ] Remove gates from background handlers
-- [ ] Strip subscription state from `useAuth`, `AuthSection`, `Sidepanel`, `DebugPanel`, diagnostics report
-- [ ] Remove message types
-- [ ] Remove homepage Pricing section
-- [ ] Update unit + e2e tests and fixtures
-- [ ] Gates green: typecheck, lint, test, test:e2e, build
+- [x] Move `getGoogleIdToken` out of `subscription-service.ts`
+- [x] Delete subscription/pricing/remote-config modules and components
+- [x] Remove gates from background handlers
+- [x] Strip subscription state from `useAuth`, `AuthSection`, `Sidepanel`, `DebugPanel`, diagnostics report
+- [x] Remove message types
+- [x] Remove homepage Pricing section
+- [x] Update unit + e2e tests and fixtures
+- [x] Gates green: typecheck, lint, test, test:e2e, build
 
 Depends on 01 being deployed (so the client removal can ship without coordinating with the backend).
 

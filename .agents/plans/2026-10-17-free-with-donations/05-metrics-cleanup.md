@@ -1,12 +1,12 @@
 # 05 · Metrics and dashboard cleanup
 
 ## Tracker
-- [ ] Remove `firebase_users`, `lemon_revenue`, `lemon_orders` metrics
-- [ ] Keep GA4 working (it shares the Firebase admin-SDK credential)
-- [ ] Update Supabase `daily-metrics-snapshot`
-- [ ] Update `dashboard.html`: lead with CWS weekly users
-- [ ] Update `fetch-metrics.yml` secrets
-- [ ] Verify a CI metrics run + dashboard deploy
+- [x] Remove `firebase_users`, `lemon_revenue`, `lemon_orders` metrics
+- [x] Keep GA4 working (it shares the Firebase admin-SDK credential)
+- [x] Update Supabase `daily-metrics-snapshot`
+- [x] Update `dashboard.html`: lead with CWS weekly users
+- [x] Update `fetch-metrics.yml` secrets
+- [x] Verify a CI metrics run + dashboard deploy
 
 Can start once 01 is deployed (after the flip, `users` stops growing, so "Registered Users" becomes meaningless anyway).
 

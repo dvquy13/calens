@@ -1,13 +1,13 @@
 # 03 · Support link, homepage, privacy, CWS listing
 
 ## Tracker
-- [ ] `SUPPORT_URL` constant
-- [ ] Footer "Support Calens" link in the side panel
-- [ ] Resolve the empty gear popover in `AuthSection`
-- [ ] Homepage: replace Pricing with a "Free & open source" section
-- [ ] Privacy policy: remove payments/LemonSqueezy/trial user records
+- [x] `SUPPORT_URL` constant
+- [x] Footer "Support Calens" link in the side panel
+- [x] Resolve the empty gear popover in `AuthSection`
+- [x] Homepage: replace Pricing with a "Free & open source" section
+- [x] Privacy policy: remove payments/LemonSqueezy/trial user records
 - [ ] CWS listing copy + "in-app purchases" flag + payment-data checkbox (agent browser, at release)
-- [ ] Tests + live verification
+- [x] Tests + live verification
 
 Depends on 02 (same files).
 

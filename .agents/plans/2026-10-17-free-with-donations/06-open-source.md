@@ -10,7 +10,7 @@
 - [x] 6.6 gitleaks scan of the staging tree: zero findings
 - [x] 6.7 Publish: rename old repo to `calens-private`, create public `dvquy13/calens`, single squashed commit (human confirms)
 - [x] 6.8 Secrets + CI on the new repo; disable schedules in the archive
-- [ ] 6.9 Link it up: homepage GitHub button, CWS listing repo link
+- [x] 6.9 Link it up: homepage GitHub button, CWS listing repo link
 - [ ] 6.10 Rotate the Supabase DB password (human, recommended hygiene, not a blocker)
 
 ## Decisions (owner, 2026-10-20)

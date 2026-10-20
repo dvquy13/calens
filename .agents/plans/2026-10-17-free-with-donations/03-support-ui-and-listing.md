@@ -6,7 +6,7 @@
 - [x] Resolve the empty gear popover in `AuthSection`
 - [x] Homepage: replace Pricing with a "Free & open source" section
 - [x] Privacy policy: remove payments/LemonSqueezy/trial user records
-- [ ] CWS listing copy + "in-app purchases" flag + payment-data checkbox (agent browser, at release)
+- [x] CWS listing copy + "in-app purchases" flag + payment-data checkbox (agent browser, at release)
 - [x] Tests + live verification
 
 Depends on 02 (same files).
@@ -31,7 +31,7 @@ Read-only audit 2026-10-20 (dashboard `…/devconsole/84b5fffc-fcef-4cea-867f-4f
 - **Listing** (`/edit/listing`): description has no trial/premium/pricing wording. Only add a short "Free and open source" block (draft in the PR description).
 - **Distribution** (`/edit/distribution`), Payments: currently **"Có tính năng mua hàng trong ứng dụng" (has in-app purchases)**. Switch to **"Miễn phí" (Free)**.
 - **Privacy** (`/edit/privacy`), data collected: **"Thông tin thanh toán và tài chính" (financial and payment info) is checked**. Uncheck it. Keep PII, authentication info, personal communications and user activity (Diagnostics still sends them on request).
-- Do this at the same time as the release in 04 so the listing matches the shipped build: "Lưu bản nháp" (save draft) before tagging; the CI publish should then submit the listing draft with the new package (unverified: check the item status page after CI, and click "Gửi để xem xét" if the listing draft is still pending).
+- Done 2026-10-20: all three saved as a draft before tagging v0.0.3.0; the CI publish submitted them with the package (status page: draft pending review). See `docs/cws-deploy.md`.
 
 ## Verify
 - `npm run typecheck && npm run lint && npm run test && npm run test:e2e && npm run build-dev`

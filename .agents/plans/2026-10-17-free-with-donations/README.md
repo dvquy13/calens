@@ -8,11 +8,11 @@ Commit hashes in the step files before 2026-10-20 refer to `dvquy13/calens-priva
 |---|------|-----------|-------|------------|--------|
 | 1 | Server-side flip: `checkSubscription` returns free-for-all, stop writing user docs | [01-server-flip.md](01-server-flip.md) | agent | none | ✅ deployed + verified live 2026-10-20 |
 | 2 | Remove subscription stack from the extension | [02-remove-subscription-client.md](02-remove-subscription-client.md) | agent | 1 | ✅ verified live 2026-10-20 |
-| 3 | Support link, homepage + privacy + CWS listing | [03-support-ui-and-listing.md](03-support-ui-and-listing.md) | agent + human | 2 | 🟡 code done; CWS listing at release (4a) |
-| 4a | Release new version to CWS + update listing | [04-release-and-backend-teardown.md](04-release-and-backend-teardown.md) | agent + human | 2, 3 | 🟡 v0.0.3.0 in progress 2026-10-20 |
+| 3 | Support link, homepage + privacy + CWS listing | [03-support-ui-and-listing.md](03-support-ui-and-listing.md) | agent + human | 2 | ✅ listing submitted with v0.0.3.0 |
+| 4a | Release new version to CWS + update listing | [04-release-and-backend-teardown.md](04-release-and-backend-teardown.md) | agent + human | 2, 3 | 🟡 v0.0.3.0 submitted 2026-10-20, pending CWS review |
 | 4b | Backend teardown (Cloud Functions, Firestore `users`, LemonSqueezy) | [04-release-and-backend-teardown.md](04-release-and-backend-teardown.md) | agent + human | 4a + ~4 weeks | ⬜ |
 | 5 | Metrics and dashboard cleanup | [05-metrics-cleanup.md](05-metrics-cleanup.md) | agent | 1 | ✅ verified from the public repo 2026-10-20 |
-| 6 | Open-source: new public repo `dvquy13/calens` as the extension's home (flattened), MIT, FUNDING.yml | [06-open-source.md](06-open-source.md) | agent + human | 2, 3 | ✅ published 2026-10-20 (6.9 with 4a; 6.10 owner) |
+| 6 | Open-source: new public repo `dvquy13/calens` as the extension's home (flattened), MIT, FUNDING.yml | [06-open-source.md](06-open-source.md) | agent + human | 2, 3 | ✅ published 2026-10-20 (6.10 owner) |
 
 Parallelism: 1 and 5 can start now. 2 and 3 touch the same side-panel files (`Sidepanel.tsx`, `AuthSection.tsx`), so run them sequentially in one worktree. 6.1 (rotate the Supabase DB password) can run any time and should not wait.
 

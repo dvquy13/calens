@@ -1,7 +1,7 @@
 # 04 · Release, then tear down the backend
 
 ## Tracker
-- [ ] Release: tag + CWS submission + listing update (same day)
+- [x] Release: tag + CWS submission + listing update (same day) — v0.0.3.0, 2026-10-20
 - [ ] Wait ~4 weeks for old versions to auto-update
 - [ ] Delete subscription Cloud Functions (keep `submitDiagnostics`)
 - [ ] Delete Firestore `users` collection

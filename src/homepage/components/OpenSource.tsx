@@ -1,5 +1,5 @@
-import { Heart } from 'lucide-react';
-import { SUPPORT_URL } from '../../lib/links';
+import { Github, Heart } from 'lucide-react';
+import { GITHUB_REPO_URL, SUPPORT_URL } from '../../lib/links';
 import { Button } from './ui/Button';
 
 export default function OpenSource() {
@@ -12,6 +12,12 @@ export default function OpenSource() {
         Calens is free forever, with no tiers or paywalls. The code is open for anyone to read, improve or fork.
       </p>
       <div className="flex flex-col sm:flex-row items-center gap-3">
+        <Button asChild size="large">
+          <a href={GITHUB_REPO_URL} target="_blank" rel="noopener noreferrer">
+            <Github className="w-4 h-4" />
+            View on GitHub
+          </a>
+        </Button>
         <Button asChild size="large">
           <a href={SUPPORT_URL} target="_blank" rel="noopener noreferrer">
             <Heart className="w-4 h-4" />

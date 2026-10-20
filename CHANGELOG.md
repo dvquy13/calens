@@ -5,6 +5,17 @@ All notable changes to Calens will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.3.0] - 2026-10-20
+
+### Changed
+
+- **Calens is now free for everyone and open source** (MIT, [github.com/dvquy13/calens](https://github.com/dvquy13/calens)). No trial, no paywall, no premium tier
+- A quiet "Support Calens" link in the side panel footer opens GitHub Sponsors, for anyone who wants to say thanks
+
+### Removed
+
+- Subscription checks, the upgrade panel, the premium badge and the settings menu that only held "Manage Subscription"
+
 ## [0.0.2.7] - 2026-10-19
 
 ### Fixed

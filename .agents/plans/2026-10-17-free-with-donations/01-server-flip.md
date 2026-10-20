@@ -1,10 +1,10 @@
 # 01 · Server-side flip: free for everyone, today
 
 ## Tracker
-- [ ] Change `checkSubscription` to always return `canUseFeatures: true`
-- [ ] Stop creating/updating `users/{email}` docs
-- [ ] Deploy only that function
-- [ ] Verify with an installed (old) build
+- [x] Change `checkSubscription` to always return `canUseFeatures: true`
+- [x] Stop creating/updating `users/{email}` docs
+- [x] Deploy only that function
+- [x] Verify with an installed (old) build
 
 ## Why first
 Every installed copy of Calens asks `checkSubscription` at most once per 24h and fails closed. Flipping the server response makes every existing install free within a day, with no extension release and no CWS review. It also makes the later client removal (step 02) zero-risk: whatever version a user runs, they get full access.

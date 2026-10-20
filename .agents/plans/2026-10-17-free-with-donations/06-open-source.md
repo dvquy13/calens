@@ -1,15 +1,15 @@
 # 06 · Open-source: a new public repo as Calens's home
 
 ## Tracker
-- [ ] 6.0 Merge `remove-paywall` into `main` (publish the free version, not the paywalled one)
-- [ ] 6.1 Export exclude list: private material stays in `calens-private` only
-- [ ] 6.2 Scrub the tree: credentials in docs, PII fixtures, personal paths
-- [ ] 6.3 Lock down the Claude workflows for a public repo
-- [ ] 6.4 Public-facing files: LICENSE (MIT), root README, FUNDING.yml, SECURITY.md, CONTRIBUTING.md
-- [ ] 6.5 Flatten: export `chrome-extension/` to the root of a staging tree, port workflows, all gates green there
-- [ ] 6.6 gitleaks scan of the staging tree: zero findings
-- [ ] 6.7 Publish: rename old repo to `calens-private`, create public `dvquy13/calens`, single squashed commit (human confirms)
-- [ ] 6.8 Secrets + CI on the new repo; disable schedules in the archive
+- [x] 6.0 Merge `remove-paywall` into `main` (publish the free version, not the paywalled one)
+- [x] 6.1 Export exclude list: private material stays in `calens-private` only
+- [x] 6.2 Scrub the tree: credentials in docs, PII fixtures, personal paths
+- [x] 6.3 Lock down the Claude workflows for a public repo
+- [x] 6.4 Public-facing files: LICENSE (MIT), root README, FUNDING.yml, SECURITY.md, CONTRIBUTING.md
+- [x] 6.5 Flatten: export `chrome-extension/` to the root of a staging tree, port workflows, all gates green there
+- [x] 6.6 gitleaks scan of the staging tree: zero findings
+- [x] 6.7 Publish: rename old repo to `calens-private`, create public `dvquy13/calens`, single squashed commit (human confirms)
+- [x] 6.8 Secrets + CI on the new repo; disable schedules in the archive
 - [ ] 6.9 Link it up: homepage GitHub button, CWS listing repo link
 - [ ] 6.10 Rotate the Supabase DB password (human, recommended hygiene, not a blocker)
 

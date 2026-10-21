@@ -173,7 +173,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       message.originalTop,
       message.originalHeight,
       getDatabase,
-      sender.tab?.id
+      sender.tab?.id,
+      message.scope
     );
     return false; // No response needed (fully async)
   }

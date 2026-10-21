@@ -3,6 +3,8 @@
  * Replaces hardcoded string literals throughout the codebase
  */
 
+import type { EditScope } from './recurring/recurring-edit';
+
 export const MessageType = {
   DATE_RANGE_UPDATE: 'DATE_RANGE_UPDATE',
   GET_DATE_RANGE: 'GET_DATE_RANGE',
@@ -77,6 +79,11 @@ export interface EventSelectedMessage {
 
 export interface UpdateEventStartMessage {
   type: typeof MessageType.UPDATE_EVENT_START;
+  eventId: string;
+  minutesShift: number;
+  originalTop: number;
+  originalHeight: number;
+  scope?: EditScope; // set on the resend after UPDATE_EVENT_NEEDS_SCOPE; absent for non-recurring events
 }
 
 export interface UpdateEventSuccessMessage {

@@ -3,10 +3,10 @@
 Read [README.md](README.md) first.
 
 ## Tracker
-- [ ] Background: `UPDATE_EVENT_START` accepts `scope`; replies `UPDATE_EVENT_NEEDS_SCOPE` for recurring events without one
-- [ ] Background: SW `RecurringClient` adapter, scoped write via `applyRecurringEdit`
-- [ ] Content: `src/content/scope-picker.ts`
-- [ ] Content: `drag-handler.ts` wires the picker, resend, cancel-revert
+- [x] Background: `UPDATE_EVENT_START` accepts `scope`; replies `UPDATE_EVENT_NEEDS_SCOPE` for recurring events without one
+- [x] Background: SW `RecurringClient` adapter, scoped write via `applyRecurringEdit`
+- [x] Content: `src/content/scope-picker.ts`
+- [x] Content: `drag-handler.ts` wires the picker, resend, cancel-revert
 - [ ] typecheck, lint, test, build-dev (bundle check) green
 
 ## Background (`src/background/event-update-handler.ts`, `src/background/index.ts`)

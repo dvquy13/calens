@@ -168,6 +168,14 @@ export function showSavingToast(eventId: string): void {
 }
 
 /**
+ * Remove the loading toast without a result (e.g. while a scope picker is open)
+ */
+export function hideSavingToast(eventId: string): void {
+  toastMap.get(eventId)?.remove();
+  toastMap.delete(eventId);
+}
+
+/**
  * Update the loading toast to success
  */
 export function showSuccessToast(eventId: string): void {

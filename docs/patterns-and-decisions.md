@@ -713,3 +713,52 @@ Panel → `submitDiagnostics` (`functions/src/diagnostics.ts`, wired in `functio
 - `functions/src/diagnostics.ts`—`handleDiagnostics`, rate limit, Discord form
 - `functions/src/index.ts`—`submitDiagnostics` export
 - `firestore.rules`—deny-all for `diagnosticReports` and `diagnosticRateLimits`
+
+## Recurring events
+
+**Date:** 2026-10-21
+**Context:** Calens blocked editing recurring events, and two write paths (drag of the top edge, tag bulk sync) silently PATCHed single occurrences. Google's model is a master event with an RRULE and per-occurrence exceptions. Analytics already work from `singleEvents=true` instances, so only the write side changed. Live facts behind these decisions are in `google-calendar-dom.md` ("Recurring events").
+
+#### Decision: Three Scopes, Like Google
+
+Side panel ("Apply edits to") and drag picker offer **This event / This and following / All events**. The default is This event.
+
+- "This event" PATCHes the instance ID (`<seriesId>_<UTC start>`).
+- "All events" GETs the master and PATCHes it.
+- "This and following" splits the series (see below).
+- "This and following" on the first occurrence is treated as "All events", since splitting there leaves nothing behind.
+- Series scopes need `calendar.accessRole` `writer`/`owner` and `master.organizer.self === true`. Otherwise only "This event" is enabled, with the reason in a tooltip.
+
+#### Decision: Tags Are Always Series-Wide
+
+Tags live in the master's description front-matter, whatever the scope. Writing them to one occurrence would leave the series' tags inconsistent, and the tag sync dialog already applies tags across events with the same name.
+
+A master `description` PATCH overwrites the description of every occurrence, exceptions included (verified 2026-10-21). `writeSeriesTags` therefore snapshots the occurrences whose notes differ from the master's, PATCHes the master, then PATCHes those occurrences back with their own notes plus the new tags. Other fields are not affected: a master PATCH leaves an exception's `location` alone unless the PATCH touches `location`, so the title and location autosaves patch only the field that changed.
+
+#### Decision: Split Drops Later Exceptions
+
+"This and following" PATCHes the old master's RRULE with `UNTIL=<split − 1s, UTC>` and inserts a new master at the chosen occurrence with the rest of the rule (a `COUNT` becomes the remaining count; see `rrule-split.ts`). Exceptions at or after the split point are dropped (verified live 2026-10-21), matching RRULE semantics. If the insert fails, the old rule is restored, so a failed split loses nothing.
+
+#### Decision: No Guest Emails
+
+No write sets `sendUpdates`, same as before this feature. Guests are not notified by Calens edits, and the scope control does not change that.
+
+#### Decision: Plain `TRIGGER_SYNC` After Series Writes
+
+No dedicated resync. After a split, Google's incremental `events.list?singleEvents=true&updatedMin=…` returns the occurrences the new UNTIL removed as `status: "cancelled"`, and `SyncService` deletes them. Moving a master's start (an "All events" drag) re-keys every instance ID, and the old IDs come back as `cancelled` the same way. The sync that every write already triggers is enough.
+
+#### Testing
+
+`e2e/recurring-edit.spec.ts` runs the seven flows against an in-memory Calendar API (`FakeCalendarApi`) that encodes the same live facts, and asserts on the recorded requests (method, path, body). Live checks on a throwaway series are a separate step; the E2E suite only proves what the extension sends.
+
+#### Related Files
+
+- `src/lib/recurring/recurring-edit.ts`—`applyRecurringEdit`, `canEditSeries`, `writeSeriesTags`
+- `src/lib/recurring/rrule-split.ts`—RRULE split (UNTIL, COUNT)
+- `src/lib/recurring/recurring-save.ts`—per-field save decision for the side panel
+- `src/lib/recurring/panel-client.ts`—side-panel adapter to the Calendar client
+- `src/background/event-update-handler.ts`—drag path (scope request, series client)
+- `src/content/scope-picker.ts`—in-page picker for drags
+- `src/components/event-details/EventWarnings.tsx`—side panel scope control
+- `src/hooks/useEventAutoSave.ts`—routes autosaves through the scope
+- `e2e/recurring-edit.spec.ts`—E2E flows and the in-memory API

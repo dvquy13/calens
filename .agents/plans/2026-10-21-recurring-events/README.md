@@ -12,7 +12,7 @@ Branch: `feat/recurring-events`. Lead: the main agent. Implementers: Haiku subag
 | 3 | Side panel: "Apply edits to" scope control, tags go to the series | [03-side-panel.md](03-side-panel.md) | haiku | 1, 5 | ✅ 2026-10-21 |
 | 4 | Drag: in-page scope picker for recurring tiles | [04-drag-scope-picker.md](04-drag-scope-picker.md) | haiku | 1 | ✅ 2026-10-21 |
 | 5 | Tag bulk sync: one `writeSeriesTags` per series | [05-tag-bulk-sync.md](05-tag-bulk-sync.md) | haiku | 1 | ✅ 2026-10-21 |
-| 6 | E2E spec, docs, gates, live check | [06-tests-docs.md](06-tests-docs.md) | haiku + lead | 3, 4, 5 | ⬜ |
+| 6 | E2E spec, docs, gates, live check | [06-tests-docs.md](06-tests-docs.md) | haiku + lead | 3, 4, 5 | ✅ 2026-10-21 |
 
 Parallelism: after step 1, steps 4 and 5 touch separate files and run together. Step 3 runs after 5 because both touch `src/components/EventDetailsPanel.tsx`. After every recurring write, callers send the existing `TRIGGER_SYNC` (with `targetCalendarIds`); live facts in `docs/google-calendar-dom.md` ("Recurring events") show incremental sync picks up master PATCHes, new series and split-off occurrences.
 

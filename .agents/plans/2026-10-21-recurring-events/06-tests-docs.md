@@ -3,11 +3,11 @@
 Read [README.md](README.md) first. Read `.claude/rules/e2e-testing.md` before touching `e2e/`.
 
 ## Tracker
-- [ ] `e2e/recurring-edit.spec.ts` with an in-memory Calendar API mock
-- [ ] `docs/patterns-and-decisions.md`: "Recurring events" section
+- [x] `e2e/recurring-edit.spec.ts` with an in-memory Calendar API mock (7 cases, 2026-10-21)
+- [x] `docs/patterns-and-decisions.md`: "Recurring events" section (2026-10-21)
 - [x] `docs/google-calendar-dom.md`: step 0 findings (lead, 2026-10-21)
-- [ ] Gates: typecheck, lint, test, test:e2e, build-dev
-- [ ] Live check with `verify-in-browser` (lead)
+- [x] Gates: typecheck, lint, test, test:e2e, build-dev
+- [x] Live check with `verify-in-browser` (lead, 2026-10-21: panel scopes, tags with own-notes restore, COUNT split + reselect, no double count, drag picker + All events; test series deleted)
 
 ## E2E
 Mock `https://www.googleapis.com/calendar/v3/**` with `context.route()`: an in-memory store holding one weekly master (`organizer.self: true`, `recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=MO']`) and its instances, handling GET event, PATCH event, POST insert, GET instances, list. Record every request for assertions. Seed IndexedDB with the instances via `seedExtensionState` (`e2e/fixtures/harness.ts`); build tiles with `eventBlockHtml`/`encodeEventId` from `e2e/fixtures/gcal-dom.ts` using instance IDs.

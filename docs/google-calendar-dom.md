@@ -47,6 +47,8 @@ Verified live 2026-10-21 on a throwaway weekly series (`RRULE:FREQ=WEEKLY;COUNT=
   - PATCHing the master's `description` overwrites the description of **every** occurrence, including exceptions that had their own description. Fields the master PATCH doesn't touch (e.g. an exception's `location`) keep their overrides.
   - After a master PATCH, `events.list?singleEvents=true&updatedMin=<before>` returns every instance with the new `updated`.
   - PATCHing the master's `recurrence` to end earlier (`UNTIL=<split − 1s, UTC>`) succeeds, and the occurrences it removes come back from the same `updatedMin` list as `status: "cancelled"` (with or without `showDeleted`). Incremental sync therefore deletes them by itself.
+  - Moving a master's start (e.g. Calens' "All events" drag, verified live 2026-10-21) re-keys every instance: the IDs' UTC suffix follows the new start (`…_20261023T030000Z` → `…_20261023T023000Z`), and the old IDs come back from the `updatedMin` list as `cancelled`, so incremental sync leaves no orphan rows.
+  - A "This and following" split drops exceptions after the split point (an Oct 23 location override was gone from the new series), matching RRULE semantics.
 - **Unverified:** whether Google's own drag of a recurring event shows the "This event / This and following / All events" dialog.
 
 ## Update behavior after API writes

@@ -29,18 +29,29 @@ export interface GoogleCalendarEvent {
   creator?: {
     email: string;
     displayName?: string;
+    self?: boolean;
   };
   organizer?: {
     email: string;
     displayName?: string;
+    self?: boolean;
   };
   recurringEventId?: string;
+  originalStartTime?: {
+    dateTime?: string;
+    date?: string;
+    timeZone?: string;
+  };
   recurrence?: string[];
   status?: string;
   reminders?: {
     useDefault: boolean;
     overrides?: Array<{ method: 'email' | 'popup'; minutes: number }>;
   };
+  colorId?: string;
+  visibility?: string;
+  transparency?: string;
+  guestsCanModify?: boolean;
   htmlLink?: string;
 }
 

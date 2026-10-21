@@ -14,6 +14,7 @@ export const MessageType = {
   UPDATE_EVENT_START: 'UPDATE_EVENT_START',
   UPDATE_EVENT_SUCCESS: 'UPDATE_EVENT_SUCCESS',
   UPDATE_EVENT_FAILED: 'UPDATE_EVENT_FAILED',
+  UPDATE_EVENT_NEEDS_SCOPE: 'UPDATE_EVENT_NEEDS_SCOPE', // bg -> tab: ask which recurring scope to apply
 
   // IndexedDB query messages
   GET_CALENDARS: 'GET_CALENDARS',
@@ -87,6 +88,13 @@ export interface UpdateEventFailedMessage {
   type: typeof MessageType.UPDATE_EVENT_FAILED;
   error: string;
 }
+
+export interface UpdateEventNeedsScopeMessage {
+  type: typeof MessageType.UPDATE_EVENT_NEEDS_SCOPE;
+  eventId: string;
+  canEditSeries: boolean;
+}
+
 
 // IndexedDB query message interfaces
 export interface GetCalendarsMessage {
@@ -170,6 +178,7 @@ export type ChromeMessage =
   | UpdateEventStartMessage
   | UpdateEventSuccessMessage
   | UpdateEventFailedMessage
+  | UpdateEventNeedsScopeMessage
   | GetCalendarsMessage
   | GetEventsByRangeMessage
   | GetEventMessage

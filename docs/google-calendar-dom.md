@@ -37,6 +37,18 @@ All facts below: **verified live 2026-10-13**, week view, 1300x900 viewport, sig
 - Inside `[role="dialog"]`, a descendant with `data-eventid` (attrs include `data-keyboardactiontype`, `data-open-edit-note`). Buttons: "Edit event" and `[aria-label="Delete event"]`. Overflow menu items: `li[role="menuitem"][data-eventid]` ("Copy to <calendar>").
 - Google opens or retargets the popover during the click itself: by the time a bubble-phase click handler runs, the clicked event already has a dialog if another event's popover was open. Calens therefore decides selection deferral at `pointerdown` (`src/content/event-enhancer.ts`, `src/content/dialog-selection.ts`).
 
+## Recurring events
+
+Verified live 2026-10-21 on a throwaway weekly series (`RRULE:FREQ=WEEKLY;COUNT=6`, owned calendar), API calls made from the service worker with the extension's token.
+
+- A recurring tile's `data-eventid` decodes to the **instance** ID, `<seriesId>_<UTC YYYYMMDDTHHMMSSZ>` (e.g. `cc0j…djc_20261021T090000Z <cal>@g`), never the series ID. The suffix is the occurrence's original start in UTC.
+- Calendar API facts that Calens' recurring writes depend on (not DOM, recorded here because they were verified together):
+  - The master of a series you own has `organizer.self: true`.
+  - PATCHing the master's `description` overwrites the description of **every** occurrence, including exceptions that had their own description. Fields the master PATCH doesn't touch (e.g. an exception's `location`) keep their overrides.
+  - After a master PATCH, `events.list?singleEvents=true&updatedMin=<before>` returns every instance with the new `updated`.
+  - PATCHing the master's `recurrence` to end earlier (`UNTIL=<split − 1s, UTC>`) succeeds, and the occurrences it removes come back from the same `updatedMin` list as `status: "cancelled"` (with or without `showDeleted`). Incremental sync therefore deletes them by itself.
+- **Unverified:** whether Google's own drag of a recurring event shows the "This event / This and following / All events" dialog.
+
 ## Update behavior after API writes
 
 Google does not re-render after external API updates; it updates attributes (mostly `style`) in place rather than replacing elements, and only on user interaction, resize or view change. Verified 2025-11-28 with a MutationObserver. Details and the resulting decision: `patterns-and-decisions.md`, "Google Calendar Sync Behavior".

@@ -3,12 +3,12 @@
 Read [README.md](README.md) first, including the "Recurring events" section of `docs/google-calendar-dom.md`. Runs after step 5 (both touch `src/components/EventDetailsPanel.tsx`).
 
 ## Tracker
-- [ ] Fetch the master when a recurring instance is selected
-- [ ] Scope control in `EventWarnings.tsx` replaces the banner
-- [ ] Remove the `recurringEventId` gate from `EventHeader.tsx` / `EventForm.tsx`
-- [ ] `useEventAutoSave.ts`: scoped writes, tags to the series, re-point after a split
-- [ ] Unit tests for the new save logic
-- [ ] typecheck, lint, test, build-dev green
+- [x] Fetch the master when a recurring instance is selected
+- [x] Scope control in `EventWarnings.tsx` replaces the banner
+- [x] Remove the `recurringEventId` gate from `EventHeader.tsx` / `EventForm.tsx`
+- [x] `useEventAutoSave.ts`: scoped writes, tags to the series, re-point after a split
+- [x] Unit tests for the new save logic
+- [x] typecheck, lint, test, build-dev green
 
 ## Data
 The panel reads the event from IndexedDB (`GET_EVENT` → `transformEventStoreToGoogleEvent` in `src/background/indexeddb-handlers.ts`). Add `originalStartTime` to that transform (from `original_start`; all-day → `{ date }`, else `{ dateTime }`), since `applyRecurringEdit` needs it.

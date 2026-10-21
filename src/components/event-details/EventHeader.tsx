@@ -55,7 +55,6 @@ export function EventHeader({
   }, [isEditingTitle]);
 
   const isReadOnly =
-    !!event?.recurringEventId ||
     isSaving ||
     !['writer', 'owner'].includes(
       calendars.find((c) => c.id === selectedCalendarId)?.accessRole || ''

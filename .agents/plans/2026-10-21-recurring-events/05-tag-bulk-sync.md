@@ -3,11 +3,11 @@
 Read [README.md](README.md) first.
 
 ## Tracker
-- [ ] `src/lib/tag-sync.ts`: group matches by series
-- [ ] `TagSyncDialog.tsx`: show "N events (M recurring series)"
-- [ ] Caller in `src/components/EventDetailsPanel.tsx` passes the current event's `recurringEventId`
-- [ ] Tests in `src/lib/tag-sync.test.ts` (create if missing)
-- [ ] typecheck, lint, test green
+- [x] `src/lib/tag-sync.ts`: group matches by series
+- [x] `TagSyncDialog.tsx`: show "N events (M recurring series)"
+- [x] Caller in `src/components/EventDetailsPanel.tsx` passes the current event's `recurringEventId`
+- [x] Tests in `src/lib/tag-sync.test.ts` (create if missing)
+- [x] typecheck, lint, test green
 
 ## Problem
 `findMatchingEvents` returns every IndexedDB row with the same title, including each occurrence of recurring series. `bulkUpdateEventTags` then PATCHes each instance's description, which turns every occurrence into an exception detached from later series edits.

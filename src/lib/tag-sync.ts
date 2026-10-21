@@ -7,23 +7,44 @@
 
 import { MessageType } from './message-types';
 import { stripTagsFromDescription, mergeTagsIntoDescription } from './tag-utils';
+import { writeSeriesTags } from './recurring/recurring-edit';
+import { toRecurringClient, syncWindow } from './recurring/panel-client';
+import { diag } from './diag-panel';
 import type { GoogleCalendarEvent } from '../types/calendar';
+
+const RATE_LIMIT_MS = 100;
+
+/**
+ * Splits matched events into standalone events and the distinct recurring
+ * series they belong to. Series are updated once per series, not per occurrence.
+ */
+export function groupBySeries(events: GoogleCalendarEvent[]): {
+  singles: GoogleCalendarEvent[];
+  seriesIds: string[];
+} {
+  const singles = events.filter((e) => !e.recurringEventId);
+  const seriesIds = [...new Set(events.flatMap((e) => (e.recurringEventId ? [e.recurringEventId] : [])))];
+  return { singles, seriesIds };
+}
 
 /**
  * Finds all events in the specified calendar that match the given summary,
- * excluding the current event.
+ * excluding the current event and, when given, every occurrence of the current
+ * event's series (those get their tags through the series, not per occurrence).
  *
  * @param summary - Event summary to match
  * @param calendarId - Calendar ID to search within
  * @param currentEventId - Current event ID to exclude from results
  * @param userEmail - User email for IndexedDB query
+ * @param currentSeriesId - Recurring series ID of the current event, if it is an instance
  * @returns Array of matching events from IndexedDB cache
  */
 export async function findMatchingEvents(
   summary: string,
   calendarId: string,
   currentEventId: string,
-  userEmail: string
+  userEmail: string,
+  currentSeriesId?: string
 ): Promise<GoogleCalendarEvent[]> {
   try {
     // Query IndexedDB cache via background service worker
@@ -38,10 +59,12 @@ export async function findMatchingEvents(
       return [];
     }
 
-    // Filter: same summary AND exclude current event
+    // Filter: same summary, not the current event, not the current event's series
     const matches = (response.events || []).filter(
       (e: GoogleCalendarEvent) =>
-        e.summary === summary && e.id !== currentEventId
+        e.summary === summary &&
+        e.id !== currentEventId &&
+        (currentSeriesId === undefined || e.recurringEventId !== currentSeriesId)
     );
 
     return matches;
@@ -53,12 +76,15 @@ export async function findMatchingEvents(
 
 /**
  * Bulk updates tags for multiple events using Google Calendar API.
- * Updates are rate-limited to 100ms per event to avoid API quota issues.
+ * Standalone events are PATCHed one by one. Each recurring series gets one
+ * writeSeriesTags call (its master, plus restored per-occurrence notes), so
+ * occurrences are not turned into exceptions. Writes are rate-limited to 100ms.
  *
  * @param events - Array of events to update
  * @param tagsInput - Comma-separated tags string
  * @param createCalendarService - Function to create calendar service instance
- * @returns Object with success and failed counts
+ * @returns Object with success and failed counts (counted per event, so a series
+ *          contributes all of its matched occurrences)
  */
 export async function bulkUpdateEventTags(
   events: GoogleCalendarEvent[],
@@ -74,15 +100,15 @@ export async function bulkUpdateEventTags(
   let success = 0;
   let failed = 0;
 
-  for (const event of events) {
+  const { singles, seriesIds } = groupBySeries(events);
+
+  for (const event of singles) {
     try {
       const existingDescription = event.description || '';
       const descriptionWithoutTags = stripTagsFromDescription(existingDescription);
       const newDescription = mergeTagsIntoDescription(descriptionWithoutTags, tagsInput);
 
-      // Need to get calendarId from the event (stored in IndexedDB)
-      // Events from IndexedDB have calendar_id field
-      const calendarId = (event as any).calendar_id || event.id?.split('/')[0];
+      const calendarId = calendarIdOf(event);
 
       if (!calendarId) {
         console.error(`[bulkUpdateEventTags] No calendarId for event ${event.id}`);
@@ -96,13 +122,41 @@ export async function bulkUpdateEventTags(
 
       success++;
 
-      // Rate limiting: 100ms delay between updates
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_MS));
     } catch (error) {
       console.error(`[bulkUpdateEventTags] Failed to update event ${event.id}:`, error);
       failed++;
     }
   }
 
+  const client = toRecurringClient(calendarService.events);
+  const range = syncWindow();
+  for (const seriesId of seriesIds) {
+    const members = events.filter((e) => e.recurringEventId === seriesId);
+    const calendarId = calendarIdOf(members[0]);
+
+    if (!calendarId) {
+      console.error(`[bulkUpdateEventTags] No calendarId for series ${seriesId}`);
+      failed += members.length;
+      continue;
+    }
+
+    try {
+      await writeSeriesTags(client, calendarId, seriesId, tagsInput, range);
+      success += members.length;
+    } catch (error) {
+      diag('api', 'error', 'series tag sync failed', { endpoint: 'events.patch', occurrences: members.length });
+      console.error(`[bulkUpdateEventTags] Failed to update series ${seriesId}:`, error);
+      failed += members.length;
+    }
+
+    await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_MS));
+  }
+
   return { success, failed };
+}
+
+/** IndexedDB rows carry calendar_id; fall back to the id prefix as before. */
+function calendarIdOf(event: GoogleCalendarEvent): string | undefined {
+  return (event as GoogleCalendarEvent & { calendar_id?: string }).calendar_id || event.id?.split('/')[0];
 }

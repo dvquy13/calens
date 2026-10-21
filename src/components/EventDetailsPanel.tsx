@@ -11,7 +11,7 @@ import { EventForm } from './event-details/EventForm';
 import { SaveStatusIndicator } from './event-details/SaveStatusIndicator';
 import { TagSyncDialog } from './event-details/TagSyncDialog';
 import { parseTagsFromDescription, stripTagsFromDescription } from '../lib/tag-utils';
-import { findMatchingEvents, bulkUpdateEventTags } from '../lib/tag-sync';
+import { findMatchingEvents, bulkUpdateEventTags, groupBySeries } from '../lib/tag-sync';
 import { MessageType } from '../lib/message-types';
 import type { GoogleCalendarEvent } from '../types/calendar';
 
@@ -107,7 +107,8 @@ export function EventDetailsPanel({ isOpen, onClose, eventId }: EventDetailsPane
         eventData.event.summary,
         eventData.selectedCalendarId,
         eventData.event.id,
-        user.email
+        user.email,
+        eventData.event.recurringEventId
       );
 
       if (matches.length > 0) {
@@ -208,6 +209,7 @@ export function EventDetailsPanel({ isOpen, onClose, eventId }: EventDetailsPane
       {showSyncDialog && (
         <TagSyncDialog
           eventCount={matchingEvents.length}
+          seriesCount={groupBySeries(matchingEvents).seriesIds.length}
           tags={tagsDraft}
           onConfirm={handleSyncConfirm}
         />

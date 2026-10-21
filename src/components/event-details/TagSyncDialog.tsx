@@ -10,11 +10,12 @@ import { Button } from '../ui/button';
 
 interface TagSyncDialogProps {
   eventCount: number;
+  seriesCount: number;
   tags: string;
   onConfirm: (shouldSync: boolean) => void;
 }
 
-export function TagSyncDialog({ eventCount, tags, onConfirm }: TagSyncDialogProps) {
+export function TagSyncDialog({ eventCount, seriesCount, tags, onConfirm }: TagSyncDialogProps) {
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <Card className="w-full max-w-md">
@@ -23,7 +24,16 @@ export function TagSyncDialog({ eventCount, tags, onConfirm }: TagSyncDialogProp
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Found <strong>{eventCount}</strong> other event(s) with the same name and calendar.
+            {seriesCount > 0 ? (
+              <>
+                Found <strong>{eventCount} events</strong> (<strong>{seriesCount}</strong> recurring
+                series) with the same name and calendar.
+              </>
+            ) : (
+              <>
+                Found <strong>{eventCount}</strong> other event(s) with the same name and calendar.
+              </>
+            )}
           </p>
           <div>
             <p className="text-sm font-medium mb-1">New tags:</p>

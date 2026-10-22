@@ -4,10 +4,12 @@
  */
 
 import { extractStartTime, addMinutes, formatTimeAs } from './time-parser';
-import { showSavingToast, showSuccessToast, showErrorToast } from './toast';
+import { showSavingToast, showSuccessToast, showErrorToast, hideSavingToast } from './toast';
 import { findEventElementAtPoint } from './event-hit-tester';
 import { resolveEventForClick } from './click-event-resolver';
 import { diagContent } from './diag';
+import { showScopePicker } from './scope-picker';
+import type { EditScope } from '../lib/recurring/recurring-edit';
 
 // Message type constants (inlined because content scripts cannot use ES6 imports)
 const MessageType = {
@@ -15,7 +17,33 @@ const MessageType = {
   UPDATE_EVENT_START: 'UPDATE_EVENT_START',
   UPDATE_EVENT_SUCCESS: 'UPDATE_EVENT_SUCCESS',
   UPDATE_EVENT_FAILED: 'UPDATE_EVENT_FAILED',
+  UPDATE_EVENT_NEEDS_SCOPE: 'UPDATE_EVENT_NEEDS_SCOPE',
 } as const;
+
+/** What the background needs to resend a drag after the scope is chosen. Stored on the tile. */
+interface DragRequest {
+  minutesShift: number;
+  originalTop: number;
+  originalHeight: number;
+}
+
+/** Puts a tile back where it was before the drag, with its time text. Used on failure and on cancel. */
+function revertTile(eventElement: HTMLElement, top: number, height: number): void {
+  delete (eventElement as any)._pcaDesiredTop;
+  delete (eventElement as any)._pcaDesiredHeight;
+  delete (eventElement as any)._pcaDragRequest;
+
+  eventElement.style.top = `${top}px`;
+  eventElement.style.height = `${height}px`;
+  eventElement.removeAttribute('data-pca-pending');
+  eventElement.style.opacity = '';
+
+  const timeEl = eventElement.querySelector('.gVNoLb') as HTMLElement | null;
+  if (timeEl && (eventElement as any)._pcaOriginalTimeText) {
+    timeEl.textContent = (eventElement as any)._pcaOriginalTimeText;
+  }
+  delete (eventElement as any)._pcaOriginalTimeText;
+}
 
 // Constants
 const TOP_EDGE_HEIGHT = 10; // pixels from top that count as "top edge"
@@ -190,13 +218,15 @@ function initDrag(e: MouseEvent, eventElement: HTMLElement) {
         // Show saving toast
         showSavingToast(eventId);
 
+        // Keep the request so a scope picker can resend it with the chosen scope
+        const request: DragRequest = { minutesShift, originalTop: startTop, originalHeight: startHeight };
+        (eventElement as any)._pcaDragRequest = request;
+
         // Send message to background to update event (with rollback data)
         chrome.runtime.sendMessage({
           type: MessageType.UPDATE_EVENT_START,
           eventId,
-          minutesShift,
-          originalTop: startTop,
-          originalHeight: startHeight
+          ...request
         });
 
         // Styles already updated during drag - just wait for API response
@@ -289,6 +319,7 @@ export function initDragResponseHandlers(): void {
         delete (eventElement as any)._pcaDesiredTop;
         delete (eventElement as any)._pcaDesiredHeight;
         delete (eventElement as any)._pcaOriginalTimeText;
+        delete (eventElement as any)._pcaDragRequest;
 
         // Clear pending indicator - API confirmed success
         // Our optimistic UI is already showing the correct position
@@ -315,25 +346,36 @@ export function initDragResponseHandlers(): void {
       }
     }
 
+    if (message.type === MessageType.UPDATE_EVENT_NEEDS_SCOPE) {
+      const eventElement = document.querySelector(`[data-pca-pending="${message.eventId}"]`);
+      if (eventElement instanceof HTMLElement) {
+        const request = (eventElement as any)._pcaDragRequest as DragRequest;
+        hideSavingToast(message.eventId);
+
+        showScopePicker(eventElement, message.canEditSeries).then((scope: EditScope | null) => {
+          if (scope === null) {
+            revertTile(eventElement, request.originalTop, request.originalHeight);
+            diagContent('drag', 'info', 'scope cancelled', { eventId: message.eventId });
+            return;
+          }
+
+          diagContent('drag', 'info', 'scope chosen', { eventId: message.eventId, scope });
+          showSavingToast(message.eventId);
+          chrome.runtime.sendMessage({
+            type: MessageType.UPDATE_EVENT_START,
+            eventId: message.eventId,
+            ...request,
+            scope
+          });
+        });
+      }
+    }
+
     if (message.type === 'UPDATE_EVENT_FAILED') {
       const eventElement = document.querySelector(`[data-pca-pending="${message.eventId}"]`);
       if (eventElement instanceof HTMLElement) {
-        // Clean up stored values
-        delete (eventElement as any)._pcaDesiredTop;
-        delete (eventElement as any)._pcaDesiredHeight;
-
-        // Revert to original position
-        eventElement.style.top = `${message.originalTop}px`;
-        eventElement.style.height = `${message.originalHeight}px`;
-        eventElement.removeAttribute('data-pca-pending');
-        eventElement.style.opacity = '';
-
-        // Revert time text
-        const timeEl = eventElement.querySelector('.gVNoLb') as HTMLElement | null;
-        if (timeEl && (eventElement as any)._pcaOriginalTimeText) {
-          timeEl.textContent = (eventElement as any)._pcaOriginalTimeText;
-        }
-        delete (eventElement as any)._pcaOriginalTimeText;
+        // Revert to original position and time text
+        revertTile(eventElement, message.originalTop, message.originalHeight);
 
         // Show error toast
         showErrorToast(message.eventId, message.error);

@@ -171,6 +171,7 @@ export function Sidepanel() {
         isOpen={isEventPanelOpen}
         onClose={() => setIsEventPanelOpen(false)}
         eventId={selectedEventId}
+        onReselect={setSelectedEventId}
       />
 
       <TimeChart

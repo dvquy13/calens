@@ -152,7 +152,6 @@ export function EventForm({
   };
 
   const isReadOnly =
-    !!event.recurringEventId ||
     isSaving ||
     (calendars.length > 0 && !['writer', 'owner'].includes(
       calendars.find((c) => c.id === selectedCalendarId)?.accessRole || ''
@@ -216,6 +215,9 @@ export function EventForm({
           className="mt-1"
           placeholder="Add tags (e.g., Tag A, Tag B, project-123)"
         />
+        {event.recurringEventId && (
+          <p className="mt-1 text-xs text-muted-foreground">Tags apply to every occurrence</p>
+        )}
       </div>
 
       {/* Description Editor */}

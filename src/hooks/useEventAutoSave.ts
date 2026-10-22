@@ -1,7 +1,11 @@
 import { useState, useCallback } from 'react';
-import { decodeEventId } from '../lib/utils';
+import { decodeEventId, encodeEventId } from '../lib/event-id-utils';
 import { MessageType } from '../lib/message-types';
 import { mergeTagsIntoDescription } from '../lib/tag-utils';
+import { diag } from '../lib/diag-panel';
+import { toRecurringClient, syncWindow } from '../lib/recurring/panel-client';
+import { saveRecurringField } from '../lib/recurring/recurring-save';
+import type { EditScope } from '../lib/recurring/recurring-edit';
 import type { GoogleCalendarEvent } from '../types/calendar';
 
 interface FormData {
@@ -17,6 +21,12 @@ interface UseEventAutoSaveParams {
   tagsDraft: string;
   createCalendarService: () => any;
   selectedCalendarId: string;
+  /** Which occurrences a recurring edit applies to (tags always apply to the series). */
+  scope: EditScope;
+  /** Called with the first occurrence of the new series after a "following" split. */
+  onReselect: (encodedEventId: string) => void;
+  /** Called with the series master after a tags write. */
+  onMasterRefreshed: (master: GoogleCalendarEvent) => void;
 }
 
 interface UseEventAutoSaveReturn {
@@ -48,6 +58,9 @@ export function useEventAutoSave({
   tagsDraft,
   createCalendarService,
   selectedCalendarId,
+  scope,
+  onReselect,
+  onMasterRefreshed,
 }: UseEventAutoSaveParams): UseEventAutoSaveReturn {
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -89,31 +102,55 @@ export function useEventAutoSave({
 
       setIsSaving(true);
       setSaveStatus('saving');
-      const { eventId: decodedEventId } = decodeEventId(eventId!);
+      const { eventId: decodedEventId, calendarId: shortCalendarId } = decodeEventId(eventId!);
 
       try {
-        const finalDescription = mergeTagsIntoDescription(descriptionDraft, tagsDraft);
-
-        const updatedEvent = await calendarService.events.update(
-          selectedCalendarId,
-          decodedEventId,
-          {
-            summary: formData.summary,
-            location: formData.location,
-            description: finalDescription,
+        if (event.recurringEventId) {
+          const result = await saveRecurringField({
+            client: toRecurringClient(calendarService.events),
+            calendarId: selectedCalendarId,
+            instance: event,
+            field,
+            scope,
+            values: {
+              summary: formData.summary,
+              location: formData.location,
+              description: descriptionDraft,
+              tags: tagsDraft,
+            },
+            window: syncWindow(),
+          });
+          diag('api', 'info', 'recurring save', {
+            eventId: decodedEventId,
+            seriesId: event.recurringEventId,
+            scope: field === 'tags' ? 'series' : scope,
+          });
+          if (result.master) onMasterRefreshed(result.master);
+          if (result.reselectInstanceId) {
+            onReselect(encodeEventId(result.reselectInstanceId, shortCalendarId));
           }
-        );
+        } else {
+          const updatedEvent = await calendarService.events.update(
+            selectedCalendarId,
+            decodedEventId,
+            {
+              summary: formData.summary,
+              location: formData.location,
+              description: mergeTagsIntoDescription(descriptionDraft, tagsDraft),
+            }
+          );
 
-        // Only update event state if fields other than description changed
-        // This prevents the editor from re-rendering and stealing focus after autosave
-        const hasRelevantChanges =
-          updatedEvent.summary !== event.summary ||
-          updatedEvent.location !== event.location ||
-          updatedEvent.start?.dateTime !== event.start?.dateTime ||
-          updatedEvent.end?.dateTime !== event.end?.dateTime;
+          // Only update event state if fields other than description changed
+          // This prevents the editor from re-rendering and stealing focus after autosave
+          const hasRelevantChanges =
+            updatedEvent.summary !== event.summary ||
+            updatedEvent.location !== event.location ||
+            updatedEvent.start?.dateTime !== event.start?.dateTime ||
+            updatedEvent.end?.dateTime !== event.end?.dateTime;
 
-        if (hasRelevantChanges) {
-          setEvent(updatedEvent);
+          if (hasRelevantChanges) {
+            setEvent(updatedEvent);
+          }
         }
 
         // Always update lastSavedData to track what we saved
@@ -139,7 +176,7 @@ export function useEventAutoSave({
         setIsSaving(false);
       }
     },
-    [event, formData, descriptionDraft, tagsDraft, lastSavedData, createCalendarService, selectedCalendarId, eventId]
+    [event, formData, descriptionDraft, tagsDraft, lastSavedData, createCalendarService, selectedCalendarId, eventId, scope, onReselect, onMasterRefreshed]
   );
 
   return {

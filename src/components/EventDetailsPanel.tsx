@@ -11,14 +11,19 @@ import { EventForm } from './event-details/EventForm';
 import { SaveStatusIndicator } from './event-details/SaveStatusIndicator';
 import { TagSyncDialog } from './event-details/TagSyncDialog';
 import { parseTagsFromDescription, stripTagsFromDescription } from '../lib/tag-utils';
-import { findMatchingEvents, bulkUpdateEventTags } from '../lib/tag-sync';
+import { findMatchingEvents, bulkUpdateEventTags, groupBySeries } from '../lib/tag-sync';
 import { MessageType } from '../lib/message-types';
+import { decodeEventId } from '../lib/event-id-utils';
+import { diag } from '../lib/diag-panel';
+import type { EditScope } from '../lib/recurring/recurring-edit';
 import type { GoogleCalendarEvent } from '../types/calendar';
 
 interface EventDetailsPanelProps {
   isOpen: boolean;
   onClose: () => void;
   eventId: string | null;
+  /** Re-points the panel at the first occurrence of a series created by a "following" split. */
+  onReselect: (encodedEventId: string) => void;
 }
 
 interface FormData {
@@ -26,7 +31,7 @@ interface FormData {
   location: string;
 }
 
-export function EventDetailsPanel({ isOpen, onClose, eventId }: EventDetailsPanelProps) {
+export function EventDetailsPanel({ isOpen, onClose, eventId, onReselect }: EventDetailsPanelProps) {
   const { createCalendarService, user } = useAuth();
   const eventData = useEventData({
     eventId,
@@ -44,6 +49,9 @@ export function EventDetailsPanel({ isOpen, onClose, eventId }: EventDetailsPane
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [showSyncDialog, setShowSyncDialog] = useState(false);
   const [matchingEvents, setMatchingEvents] = useState<GoogleCalendarEvent[]>([]);
+  const [scope, setScope] = useState<EditScope>('this');
+  const [master, setMaster] = useState<GoogleCalendarEvent | null>(null);
+  const [masterError, setMasterError] = useState<string | null>(null);
 
   const autoSave = useEventAutoSave({
     eventId,
@@ -53,7 +61,49 @@ export function EventDetailsPanel({ isOpen, onClose, eventId }: EventDetailsPane
     tagsDraft,
     createCalendarService,
     selectedCalendarId: eventData.selectedCalendarId,
+    scope,
+    onReselect,
+    onMasterRefreshed: setMaster,
   });
+
+  // A new selection starts over on "This event".
+  useEffect(() => {
+    setScope('this');
+    setMaster(null);
+    setMasterError(null);
+  }, [eventId]);
+
+  // Fetch the series master once per loaded recurring instance. Series scopes
+  // need it to decide whether the user may edit the whole series. The guard
+  // skips the stale event that is still loaded right after the selection changes.
+  const loadedEventId = eventData.event?.id;
+  const seriesId = eventData.event?.recurringEventId;
+  useEffect(() => {
+    if (!eventId || !seriesId || !loadedEventId) return;
+    if (loadedEventId !== decodeEventId(eventId).eventId) return;
+
+    const calendarService = createCalendarService();
+    if (!calendarService) {
+      setMasterError('Calendar service not available. Please sign in.');
+      return;
+    }
+
+    let cancelled = false;
+    calendarService.events
+      .get(eventData.selectedCalendarId, seriesId)
+      .then((fetched: GoogleCalendarEvent) => {
+        if (!cancelled) setMaster(fetched);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        const reason = err instanceof Error ? err.message : String(err);
+        diag('fetch', 'error', 'series master fetch failed', { seriesId, reason });
+        setMasterError(`Could not load the series: ${reason}`);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId, loadedEventId, seriesId, eventData.selectedCalendarId]);
 
   // Initialize form data when event loads
   useEffect(() => {
@@ -107,7 +157,8 @@ export function EventDetailsPanel({ isOpen, onClose, eventId }: EventDetailsPane
         eventData.event.summary,
         eventData.selectedCalendarId,
         eventData.event.id,
-        user.email
+        user.email,
+        eventData.event.recurringEventId
       );
 
       if (matches.length > 0) {
@@ -178,6 +229,10 @@ export function EventDetailsPanel({ isOpen, onClose, eventId }: EventDetailsPane
               event={eventData.event}
               calendars={eventData.calendars}
               selectedCalendarId={eventData.selectedCalendarId}
+              master={master}
+              masterError={masterError}
+              scope={scope}
+              onScopeChange={setScope}
             />
             <EventForm
               event={eventWithCleanDescription}
@@ -208,6 +263,7 @@ export function EventDetailsPanel({ isOpen, onClose, eventId }: EventDetailsPane
       {showSyncDialog && (
         <TagSyncDialog
           eventCount={matchingEvents.length}
+          seriesCount={groupBySeries(matchingEvents).seriesIds.length}
           tags={tagsDraft}
           onConfirm={handleSyncConfirm}
         />

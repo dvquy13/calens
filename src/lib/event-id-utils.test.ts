@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveCalendarId } from './event-id-utils';
+import { decodeEventId, encodeEventId, resolveCalendarId } from './event-id-utils';
 
 const CALENDARS = [
   'someone@gmail.com',
@@ -33,5 +33,19 @@ describe('resolveCalendarId', () => {
 
   it('returns null when the abbreviation is ambiguous', () => {
     expect(resolveCalendarId('name@x', [...CALENDARS, 'name@gmail.com'])).toBeNull();
+  });
+});
+
+describe('encodeEventId', () => {
+  it('round-trips through decodeEventId', () => {
+    const encoded = encodeEventId('abc123_20261102T090000Z', 'someone@m');
+    expect(decodeEventId(encoded)).toEqual({
+      eventId: 'abc123_20261102T090000Z',
+      calendarId: 'someone@m',
+    });
+  });
+
+  it('produces the same base64 shape Google emits in data-eventid', () => {
+    expect(encodeEventId('evt1', 'name@g')).toBe(btoa('evt1 name@g'));
   });
 });

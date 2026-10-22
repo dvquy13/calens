@@ -3,6 +3,7 @@
 // Side-panel only (imported by useAuth): logs go through diag-panel. Never log
 // the token or any Authorization header.
 import { diag } from './diag-panel';
+import type { GoogleCalendarEvent } from '../types/calendar';
 
 // Note: client_id is configured in manifest.json oauth2 section
 // Chrome reads it directly from there - no need to duplicate it here
@@ -303,6 +304,67 @@ export function createCalendarClient(accessToken: string) {
           throw new Error(`Failed to update event: ${response.status} - ${errorText}`);
         }
         return response.json();
+      },
+
+      insert: async (calendarId: string, event: Record<string, unknown>) => {
+        const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`;
+
+        console.log('[Google Calendar API] Inserting event');
+        console.log('[Google Calendar API] Calendar ID:', calendarId);
+        console.log('[Google Calendar API] Full URL:', url);
+
+        const response = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(event),
+        });
+
+        if (!response.ok) {
+          diag('api', 'error', 'events.insert failed', { endpoint: 'events.insert', calendarId, status: response.status });
+          const errorText = await response.text();
+          throw new Error(`Failed to insert event: ${response.status} - ${errorText}`);
+        }
+        return response.json();
+      },
+
+      // Follows nextPageToken. With maxResults set, stops once that many instances are collected,
+      // so a "first instance" lookup does not page through the rest of the series.
+      instances: async (
+        calendarId: string,
+        eventId: string,
+        params?: { timeMin?: string; timeMax?: string; maxResults?: number; showDeleted?: boolean }
+      ) => {
+        const baseUrl = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}/instances`;
+
+        console.log('[Google Calendar API] Fetching event instances');
+        console.log('[Google Calendar API] Calendar ID:', calendarId);
+        console.log('[Google Calendar API] Event ID:', eventId);
+
+        const items: GoogleCalendarEvent[] = [];
+        let pageToken: string | undefined;
+        do {
+          const url = new URL(baseUrl);
+          Object.entries(params ?? {}).forEach(([key, value]) => {
+            if (value !== undefined) {
+              url.searchParams.append(key, value.toString());
+            }
+          });
+          if (pageToken) {
+            url.searchParams.append('pageToken', pageToken);
+          }
+
+          const response = await fetch(url.toString(), { headers });
+          if (!response.ok) {
+            diag('api', 'error', 'events.instances failed', { endpoint: 'events.instances', calendarId, status: response.status });
+            const errorText = await response.text();
+            throw new Error(`Failed to fetch event instances: ${response.status} - ${errorText}`);
+          }
+          const page = await response.json();
+          items.push(...(page.items ?? []));
+          pageToken = page.nextPageToken;
+        } while (pageToken && (params?.maxResults === undefined || items.length < params.maxResults));
+
+        return params?.maxResults === undefined ? items : items.slice(0, params.maxResults);
       },
     },
   };

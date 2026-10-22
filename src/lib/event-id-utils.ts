@@ -32,6 +32,15 @@ export function decodeEventId(encodedEventId: string): DecodedEventId {
 }
 
 /**
+ * Encode an event ID the way Google Calendar's `data-eventid` attribute does.
+ * Inverse of `decodeEventId`. Pass the abbreviated calendar part (the one
+ * `decodeEventId` returns), not a full calendar ID.
+ */
+export function encodeEventId(eventId: string, shortCalendarId: string): string {
+  return btoa(`${eventId} ${shortCalendarId}`);
+}
+
+/**
  * Resolve an abbreviated calendar ID from `data-eventid` to one of the user's
  * full calendar IDs.
  *

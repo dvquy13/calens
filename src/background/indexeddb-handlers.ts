@@ -29,6 +29,11 @@ function transformEventStoreToGoogleEvent(eventStore: EventStore): GoogleCalenda
     status: eventStore.status,
     htmlLink: eventStore.htmlLink,
     recurringEventId: eventStore.recurringEventId,
+    originalStartTime: eventStore.original_start
+      ? isAllDay
+        ? { date: eventStore.original_start.toISOString().split('T')[0] }
+        : { dateTime: eventStore.original_start.toISOString() }
+      : undefined,
     attendees: eventStore.attendees?.map(a => ({
       email: a.email,
       displayName: a.displayName,

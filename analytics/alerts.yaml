@@ -15,5 +15,6 @@ alerts:
     labels:
       gsc_clicks_28d: "Clicks · 28d"
       gsc_impressions_28d: "Impressions · 28d"
-      cws_users: "CWS Installs"
+      active_users_7d: "Weekly users"
+      cws_users: "Store users (CWS)"
       ga4_users_28d: "Visitors · 28d"

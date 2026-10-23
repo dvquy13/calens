@@ -1,3 +1,7 @@
 # Public by design, not secrets:
 # - the extension's RSA public key (pins the dev extension ID; ships in every installed copy)
 public/manifest.json:generic-api-key:5
+# - the Supabase publishable key (client-side key; active_pings is reachable only through RPCs)
+analytics/configs/active-users-7d.json:generic-api-key:8
+src/lib/active-ping.ts:generic-api-key:6
+src/lib/active-ping.test.ts:generic-api-key:42

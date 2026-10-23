@@ -37,6 +37,10 @@ export async function withExtension(run: (harness: Harness) => Promise<void>) {
     await context.route('https://calendar.google.com/**', (route) =>
       route.fulfill({ status: 200, contentType: 'text/html', body: fixtureHtml })
     );
+    // Active-day ping sent on every side panel open; never let a test reach the real backend.
+    await context.route('https://wzacvfhfpqhdutqfcofz.supabase.co/rest/v1/rpc/record_active_day', (route) =>
+      route.fulfill({ status: 204 })
+    );
 
     const openPages = async () => {
       const calendarPage = await context.newPage();

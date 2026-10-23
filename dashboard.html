@@ -147,13 +147,14 @@ const CONFIG = {
   metrics: {
     gsc_clicks_28d:      { label: 'Clicks · 28d',      fmt: 'int',   url: 'https://search.google.com/search-console/performance/search-analytics?resource_id=sc-domain:calens.dev' },
     gsc_impressions_28d: { label: 'Impressions · 28d',  fmt: 'int',   url: 'https://search.google.com/search-console/performance/search-analytics?resource_id=sc-domain:calens.dev' },
-    cws_users:           { label: 'Weekly users',       fmt: 'int',   url: 'https://chrome.google.com/u/3/webstore/devconsole/84b5fffc-fcef-4cea-867f-4fd1d54343b4', headline: true },
+    active_users_7d:     { label: 'Weekly users',       fmt: 'int',   headline: true },
+    cws_users:           { label: 'Store users (CWS)',  fmt: 'int',   url: 'https://chrome.google.com/webstore/devconsole/84b5fffc-fcef-4cea-867f-4fd1d54343b4' },
     ga4_users_28d:       { label: 'Visitors · 28d',     fmt: 'int',   url: 'https://analytics.google.com/analytics/web/#/p528344311/reports/overview' },
   },
   sections: [
-    { title: null,                 keys: ['cws_users'] },
+    { title: null,                 keys: ['active_users_7d'] },
     { title: 'Search Performance', keys: ['gsc_clicks_28d', 'gsc_impressions_28d'] },
-    { title: 'Audience',           keys: ['ga4_users_28d'] },
+    { title: 'Audience',           keys: ['cws_users', 'ga4_users_28d'] },
   ],
 }
 

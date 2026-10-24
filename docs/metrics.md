@@ -10,12 +10,12 @@
 - **Definition:** distinct install IDs with a row in `active_pings` in the last 7 UTC days. A row is written once per UTC day when a user opens the side panel. See [patterns-and-decisions.md](patterns-and-decisions.md), "Self-counted weekly active users (2026-10-24)", for the data flow and the known limit.
 - **Expect near 0 at first.** The metric only counts installs on a release that includes the ping, so it stays low until that release reaches users. Don't read a low number as a failure before then.
 
-### Store users (`cws_users`, reference only)
+### Store users (`cws_users`, removed 2026-10-25)
 
-`cws_users` scrapes the public Chrome Web Store listing and is kept for reference. Don't use it as the success metric:
+The metric scraped the public Chrome Web Store listing and was removed (config, fixture, dashboard tile, digest label) after two failures:
 
-- The listing rounds counts of 1,000 and above down, so it shows "1,000 users" at any higher number.
-- On 2026-10-22 it jumped from about 8 to 1,629 in one day, almost all from one country on Windows with no store installs. That looks like fake update pings, so the count no longer reflects real users.
+- The listing rounds counts of 1,000 and above down, so it showed "1,000 users" at any higher number. On 2026-10-22 it jumped from about 8 to 1,629 in one day, almost all from one country on Windows with no store installs. That looks like fake update pings, so the count stopped reflecting real users.
+- From 2026-10-24 the listing HTML has no user count at all (the badge row holds only the "Extension" and "Tools" category links), so the regex failed and posted a "Metrics fetch failed" alert daily. Cause unknown. To see store installs, use the CWS developer dashboard.
 
 ## How it runs
 

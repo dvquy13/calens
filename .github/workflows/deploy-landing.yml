@@ -6,6 +6,8 @@ on:
     paths:
       - homepage.html
       - src/homepage/**
+      - privacy.html
+      - src/privacy/**
       - src/index.css
       - src/lib/links.ts
       - tailwind.config.js

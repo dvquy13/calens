@@ -36,6 +36,10 @@ jobs:
           mkdir -p _site
           cp -r dist/. _site/
           cp _site/homepage.html _site/index.html
+          # The policy used to be a static copy at /pages/privacy.html (still linked from the CWS
+          # listing and older extension versions). Lives here, not in public/: Chrome rejects
+          # extension packages with files starting with "_".
+          printf '/pages/privacy.html /privacy.html 301\n' > _site/_redirects
 
       - name: Deploy to Cloudflare Pages
         run: cd _site && npx wrangler pages deploy . --project-name=calens-landing --branch=main

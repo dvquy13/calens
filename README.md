@@ -15,7 +15,7 @@ Calens is a Chrome extension that adds time analytics and a better editing exper
 
 ## Privacy
 
-Calens reads your calendar events from Google Calendar and processes them in your browser. It does not send your events to any Calens server. The only data that leaves your browser is a Diagnostics report, and only when you choose to send one: it contains IDs and technical logs, not event content. The full privacy policy is at https://calens.dev/pages/privacy.html.
+Calens reads your calendar events from Google Calendar and processes them in your browser. It does not send your events to any Calens server. Two things leave your browser: a Diagnostics report, only when you choose to send one (IDs and technical logs, not event content), and an anonymous once-a-day usage count (a random install ID and the Calens version) that tells us how many people use Calens each week. The full privacy policy is at https://calens.dev/privacy.html.
 
 ## Free and open source
 

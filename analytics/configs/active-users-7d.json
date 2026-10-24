@@ -1,0 +1,19 @@
+{
+  "name": "active_users_7d",
+  "description": "Calens weekly active users: distinct installs that opened the side panel in the last 7 UTC days (Supabase rpc weekly_active_users)",
+  "auth": {
+    "type": "none"
+  },
+  "request": {
+    "url": "https://wzacvfhfpqhdutqfcofz.supabase.co/rest/v1/rpc/weekly_active_users?apikey=sb_publishable_lP5YMdKYfZ3IvLntTV_zBg_gJdYYkNh",
+    "method": "POST",
+    "body": {}
+  },
+  "extract": {
+    "type": "regex",
+    "pattern": "^\\s*(\\d+)\\s*$",
+    "group": 1,
+    "cast": "int"
+  },
+  "validate": { "min": 0, "max": 1000000 }
+}

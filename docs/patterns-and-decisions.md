@@ -405,15 +405,16 @@ Google Calendar API → IndexedDB (local). Event titles, descriptions, attendees
 **What leaves the device:**
 - Email + OAuth token → Google (auth), and the `submitDiagnostics` Cloud Function when the user clicks Send report
 - Event reads/writes → Google Calendar API directly (user's own account)
+- Anonymous active-day ping (random install ID + extension version) → Supabase, once per UTC day when the side panel opens. Added 2026-10-24, see "Self-counted weekly active users".
 
 **What stays local (IndexedDB):**
 - All calendar events and metadata
 - Custom tags, contribution graphs, analytics calculations
 
 **Key non-obvious facts:**
-- Supabase is NOT used in the extension — only in the metrics pipeline (`analytics/`).
+- Supabase is used by the extension only for the anonymous active-day count (`src/lib/active-ping.ts`, through the `record_active_day` RPC with the publishable key). The metrics pipeline (`analytics/`) reads the same project.
 - Firebase is only used for the `submitDiagnostics` Cloud Function, called by plain URL: the extension ships no Firebase SDK or web config (the auto-created Firebase browser API key was never used and was removed 2026-10-20 after GitHub secret scanning flagged it). The extension never touches Firestore or Realtime Database, and no event data leaves the device.
-- No external analytics or tracking (no GA, no Segment, etc.).
+- No third-party analytics or tracking SDKs (no GA, no Segment, etc.). The only usage signal is the anonymous daily count above, stored in our own Supabase project.
 
 #### Related Files
 
@@ -762,3 +763,42 @@ No dedicated resync. After a split, Google's incremental `events.list?singleEven
 - `src/components/event-details/EventWarnings.tsx`—side panel scope control
 - `src/hooks/useEventAutoSave.ts`—routes autosaves through the scope
 - `e2e/recurring-edit.spec.ts`—E2E flows and the in-memory API
+
+---
+
+## Self-counted weekly active users (2026-10-24)
+
+**Date:** 2026-10-24
+**Context:** On 2026-10-22 the Chrome Web Store weekly-user count jumped from about 8 to 1,629 (1,621 from Sweden, all Windows, no browser language, no store installs). That looks like fake update pings. The public listing now rounds to "1,000 users", and the Store API exposes no stats, so the Store number can no longer serve as the success metric.
+
+#### Decision: Count Active Days Ourselves
+
+Once per UTC day, when the side panel opens, the extension sends a random install ID and the extension version. The install ID is a UUID created on first use and kept in `chrome.storage.local`. The request carries no email, no Google account info and no calendar data.
+
+- Code: `src/lib/active-ping.ts`, called once from `src/sidepanel/main.tsx`. It never rejects. `activePingDay` is stored only after a successful response, so a failed ping retries on the next open.
+- Storage: Supabase project `calens-analytics`, table `active_pings (install_id, day, version)` with primary key `(install_id, day)`. RLS is on with no policies, so the table is private.
+- Write path: the extension calls the security-definer RPC `record_active_day(p_install_id, p_version)` with the public publishable key. Duplicates for the same install and day are ignored.
+- Read path: `weekly_active_users()` counts distinct installs over the last 7 UTC days. The metric is `active_users_7d` (see `docs/metrics.md`).
+- Retention: pg_cron job `active-pings-retention` deletes rows older than 35 days, daily at 00:30 UTC.
+
+#### Decision: No Opt-Out Toggle
+
+There is no setting to turn the ping off. It is disclosed in the privacy policy ("Anonymous Usage Count") and in the Chrome Web Store privacy form.
+
+#### Known Limit
+
+Anyone with the publishable key can call `record_active_day` with made-up UUIDs and inflate the count. This is accepted. The (install, day) key stops replays of the same pair, and the fake Store traffic does not target this endpoint. If the count jumps without a release, revisit this first.
+
+#### Gotchas
+
+- After any DDL, run `notify pgrst, 'reload schema';`. Until then PostgREST returns 404 (PGRST202/PGRST205) for the new or changed functions and tables.
+- PostgREST inserts use `RETURNING`, which needs a SELECT policy. Direct anon inserts into `active_pings` were therefore dropped in favour of the RPC, which runs as security definer and needs no policy.
+
+#### Related Files
+
+- `src/lib/active-ping.ts`—ping, install ID and once-per-day guard
+- `src/lib/active-ping.test.ts`—unit tests
+- `src/sidepanel/main.tsx`—calls `recordActiveDay()` on panel open
+- `supabase/migrations/002_active_pings.sql`—table, RLS, RPCs, retention job
+- `analytics/configs/active-users-7d.json`—metric config
+- `src/privacy/Privacy.tsx`—"Anonymous Usage Count" disclosure

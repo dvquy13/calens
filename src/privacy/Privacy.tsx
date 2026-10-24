@@ -10,7 +10,7 @@ export default function Privacy() {
           <img src="/icons/icon128.png" alt="Calens Logo" className="w-16 h-16" />
           <div>
             <h1 className="text-4xl font-bold text-gray-900 mb-2">Calens Privacy Policy</h1>
-            <p className="text-gray-600"><strong>Last Updated:</strong> October 20, 2026</p>
+            <p className="text-gray-600"><strong>Last Updated:</strong> October 24, 2026</p>
           </div>
         </header>
 
@@ -65,6 +65,18 @@ export default function Privacy() {
             <li><strong>Never included:</strong> event titles, descriptions, locations, or attendees</li>
           </ul>
 
+          <h3 className="text-xl font-semibold text-gray-800 mt-6 mb-3">Anonymous Usage Count</h3>
+          <p className="text-gray-700 mb-3">
+            Once per day (UTC), when you open the Calens side panel, the extension sends a small count to our Supabase backend so we can see how many people use Calens each week. The count is not linked to your Google account.
+          </p>
+          <ul className="list-disc ml-6 text-gray-700 space-y-2">
+            <li><strong>Included:</strong> a random install ID created the first time you open Calens and stored in your browser, and the Calens version number</li>
+            <li><strong>Never included:</strong> your email address, name, Google account information, or any calendar data</li>
+            <li><strong>Stored:</strong> in a private Supabase database (supabase.co), and each day's record is deleted after 35 days</li>
+            <li><strong>IP address:</strong> like any web request, Supabase's request logs see your IP address. It is not stored with the count.</li>
+            <li><strong>Opt-out:</strong> there is no setting to turn this off. Uninstalling Calens stops new counts from being sent.</li>
+          </ul>
+
           <h3 className="text-xl font-semibold text-gray-800 mt-6 mb-3">How We Collect Data</h3>
           <p className="text-gray-700">
             All data is collected through official Google Calendar APIs using OAuth 2.0 authentication. You must explicitly grant permission for Calens to access your calendar data.
@@ -91,8 +103,8 @@ export default function Privacy() {
 
           <h3 className="text-xl font-semibold text-gray-800 mt-6 mb-3">Data Processing Location</h3>
           <ul className="list-disc ml-6 text-gray-700 space-y-2">
-            <li><strong>100% Local Storage:</strong> All your data is stored exclusively in your browser using IndexedDB</li>
-            <li><strong>No Cloud Storage:</strong> We do not maintain any servers or cloud storage for your data</li>
+            <li><strong>100% Local Storage:</strong> All your calendar data is stored exclusively in your browser using IndexedDB</li>
+            <li><strong>No Cloud Storage:</strong> We do not store your calendar data on any server or in cloud storage</li>
             <li><strong>No External Transmission:</strong> Your calendar data never leaves your device except when communicating directly with Google APIs</li>
           </ul>
         </section>
@@ -124,8 +136,8 @@ export default function Privacy() {
             <li>Sell your data to anyone</li>
             <li>Share your data with advertisers</li>
             <li>Use your data for marketing purposes</li>
-            <li>Transfer your data to third-party services</li>
-            <li>Use analytics or tracking services (no Google Analytics, Facebook Pixel, etc.)</li>
+            <li>Transfer your calendar data to third-party services</li>
+            <li>Use third-party analytics, advertising or tracking services (no Google Analytics, Facebook Pixel, etc.). The only usage signal is the anonymous daily count described above.</li>
             <li>Collect data for purposes unrelated to calendar management</li>
           </ul>
 
@@ -136,6 +148,7 @@ export default function Privacy() {
             <li><strong>Google Calendar Web</strong> (calendar.google.com) - For content script enhancements</li>
             <li><strong>Firebase / Google Cloud</strong> (cloudfunctions.net) - Diagnostic reports, only when you send one</li>
             <li><strong>Discord</strong> - Diagnostic reports you choose to send are forwarded to our private Discord channel</li>
+            <li><strong>Supabase</strong> (supabase.co) - Anonymous daily usage count</li>
           </ul>
         </section>
 
@@ -189,6 +202,7 @@ export default function Privacy() {
           <ul className="list-disc ml-6 text-gray-700 space-y-2">
             <li><strong>Active Use:</strong> Data is retained locally as long as you have the extension installed</li>
             <li><strong>After Uninstall:</strong> All local data is automatically deleted when you uninstall the extension</li>
+            <li><strong>Usage Count:</strong> Daily usage records are deleted after 35 days</li>
             <li><strong>Google Calendar:</strong> Your calendar data remains in your Google account according to Google's policies</li>
           </ul>
 

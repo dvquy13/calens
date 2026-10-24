@@ -77,7 +77,7 @@ export function AuthSection({
             <p className="text-xs text-muted-foreground mt-2">
               You can find more details in our{' '}
               <a
-                href="https://calens.dev/pages/privacy.html?utm_source=extension&utm_medium=signin_screen"
+                href="https://calens.dev/privacy.html?utm_source=extension&utm_medium=signin_screen"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline hover:text-foreground"

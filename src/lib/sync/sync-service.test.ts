@@ -162,6 +162,7 @@ function makeStoringDb(calendars: ReturnType<typeof makeCalendar>[]) {
     updateEvent: vi.fn(async (e: { id: string; calendar_id: string }) => { events.set(e.id, e); }),
     deleteEvent: vi.fn(async (id: string) => { events.delete(id); }),
     deleteEventTags: vi.fn().mockResolvedValue(undefined),
+    deleteTagsForEvents: vi.fn().mockResolvedValue(undefined),
     batchCreateTags: vi.fn().mockResolvedValue(undefined),
     setUserMetadata: vi.fn().mockResolvedValue(undefined),
   };
@@ -266,5 +267,40 @@ describe('SyncService initial and incremental syncs', () => {
     expect(calendarService.getCalendars).toHaveBeenCalledTimes(1);
     expect(calendarService.getEvents).toHaveBeenCalledTimes(2);
     expect(maxInFlight).toBe(1);
+  });
+});
+
+/**
+ * Regression: the tags store auto-increments its IDs, and the initial sync only
+ * appended tags. Every re-run (sign-in, the resync after an update) added another
+ * copy, and aggregateByTag counted the event's hours once per copy.
+ */
+describe('SyncService.performInitialSync tags', () => {
+  it('keeps one tag row per event and tag across repeated initial syncs', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const tags: { event_id: string; tag_name: string }[] = [];
+    const db = {
+      ...makeStoringDb([makeCalendar(PRIMARY_ID, 'someone@gmail.com')]),
+      batchCreateCalendars: vi.fn().mockResolvedValue(undefined),
+      batchCreateEvents: vi.fn().mockResolvedValue(undefined),
+      batchCreateTags: vi.fn(async (rows: { event_id: string; tag_name: string }[]) => { tags.push(...rows); }),
+      deleteTagsForEvents: vi.fn(async (eventIds: string[]) => {
+        for (let i = tags.length - 1; i >= 0; i--) if (eventIds.includes(tags[i].event_id)) tags.splice(i, 1);
+      }),
+    };
+    const tagged = { ...googleEvent('tagged-1', 'confirmed'), description: '---\ntags: work, deep\n---\nNotes' };
+    const calendarService = {
+      getCalendars: vi.fn().mockResolvedValue([{ id: PRIMARY_ID, summary: 'someone@gmail.com', primary: true }]),
+      getEvents: vi.fn().mockResolvedValue({ items: [tagged] }),
+    };
+    const service = new SyncService(
+      calendarService as unknown as CalendarService,
+      db as unknown as CalendarDatabase
+    );
+
+    await service.performInitialSync(USER);
+    await service.performInitialSync(USER);
+
+    expect(tags.map(t => t.tag_name).sort()).toEqual(['deep', 'work']);
   });
 });

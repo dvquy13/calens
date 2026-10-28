@@ -277,6 +277,11 @@ export class CalendarDatabase {
     return tagStore.deleteEventTags(db, eventId);
   }
 
+  async deleteTagsForEvents(eventIds: string[]): Promise<void> {
+    const db = await this.init();
+    return tagStore.deleteTagsForEvents(db, eventIds);
+  }
+
   async deleteCalendarTags(calendarId: string): Promise<void> {
     const db = await this.init();
     return tagStore.deleteCalendarTags(db, calendarId);

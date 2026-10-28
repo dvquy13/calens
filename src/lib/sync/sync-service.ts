@@ -118,11 +118,14 @@ export class SyncService {
       totalEvents += eventStores.length;
       completed++;
 
-      // Extract and store tags for all events in this calendar
+      // Extract and store tags for all events in this calendar. Tag IDs
+      // auto-increment, so replace these events' tags rather than appending:
+      // a re-run (sign-in, resync after update) would otherwise duplicate them.
       const allTags = eventStores.flatMap(event =>
         extractTagsForEvent(userEmail, event.id, event.calendar_id, event.description)
       );
 
+      await this.db.deleteTagsForEvents(eventStores.map(event => event.id));
       if (allTags.length > 0) {
         await this.db.batchCreateTags(allTags);
         console.log(`[SyncService] Extracted ${allTags.length} tags from ${eventStores.length} events`);

@@ -122,7 +122,7 @@ The `toast()` function is not standalone - it communicates with the `<Toaster />
 - Consistent with drag-and-drop UX patterns
 
 **Implementation Approach:**
-- **Fragile DOM selector**: Find time element using Google Calendar's obfuscated class name `.gVNoLb` (subject to change with Calendar updates)
+- **Fragile DOM selector**: `findTimeText()` returns the Text node holding the start time: `.gVNoLb` on tall chips ("range" layout), `.EWOIrf` on chips under ~45 min, which have no `.gVNoLb` ("compact" layout, start time only, parsed by `extractStartOnlyTime()`). Obfuscated class names, subject to change. The compact layout was added 2026-10-28 after reports `RWFKOtUXLpdpMHrQ404N`/`0Tc4rugStVwYESSlSITj`: short events couldn't be resized at all. It writes the Text node, not the span, because the span can also hold the location.
 - **Error detection**: Log warnings and show error toasts when selector fails or time parsing fails
 - Parse original time text ("17:30 – 21:00", "5:30 PM – 9:00 PM", "1 – 4:45pm"). Google drops ":00" and drops the start's meridiem when it matches the end's, so the text is 12h if either side has one; a 24h-only parse of "1:30 – 4:45pm" would misread it as 01:30 (fixed after report `y0HcwDYJZGE8TmQpRv7T`, 2026-10-19)
 - Calculate minutes shift from pixel delta (48px/hour approximation)
@@ -802,3 +802,29 @@ Anyone with the publishable key can call `record_active_day` with made-up UUIDs 
 - `supabase/migrations/002_active_pings.sql`—table, RLS, RPCs, retention job
 - `analytics/configs/active-users-7d.json`—metric config
 - `src/privacy/Privacy.tsx`—"Anonymous Usage Count" disclosure
+
+## Local Event Store: Sync Integrity
+
+**Date:** 2026-10-28
+**Context:** Reports `0Tc4rugStVwYESSlSITj` and `RWFKOtUXLpdpMHrQ404N` showed "Event not found" for events Google still had. Two sync bugs deleted or skipped rows, and nothing ever re-fetched them.
+
+#### Decision: A Tombstone Only Deletes Its Own Calendar's Row
+
+The events store is keyed by event ID alone. Moving an event to another calendar keeps its ID, and the source calendar's `updatedMin` list returns a `cancelled` tombstone for it (`google-calendar-dom.md`, "Event IDs"). `_doIncrementalSync` therefore deletes on `cancelled` only when the stored row's `calendar_id` is the calendar being synced; otherwise it logs `cancelled copy skipped: event lives in another calendar`. An event live in two calendars at once (a guest copy) is still one row, last write wins. That was already the case and is not addressed here.
+
+#### Decision: `getEvents` Follows `nextPageToken`
+
+`CalendarService.getEvents` returns every page; `maxResults` is the page size. Before this, incremental sync (500 per page, oldest change first) silently dropped everything past the first page and still advanced `last_sync`. One user hit the cap 13 times in ~30h.
+
+#### Decision: Full Resync After Every Extension Update
+
+`onInstalled` with reason `update` runs `performInitialSync` for the signed-in user (`resync after update` in diagnostics). Full sync otherwise only runs at sign-in, so rows lost by older versions would never come back. Initial and incremental syncs share `SyncService.syncChain`, so they never interleave. In dev, every extension reload counts as an update, so each reload triggers a resync.
+
+**Known gaps:** per-calendar `syncCalendarFull` (a newly selected calendar) fetches `timeMax: now`, so it gets no future events until they change; rows Google no longer lists are not pruned (`upsert` only); `last_sync` is the client clock after the fetch (see the comment in `sync-service.ts`).
+
+#### Related Files
+
+- `src/lib/sync/sync-service.ts`—incremental tombstone guard, sync chain
+- `src/lib/calendar-service.ts`—paginated `getEvents`
+- `src/background/index.ts`—`resyncAfterUpdate()`
+- `src/lib/sync/sync-service.test.ts`, `src/lib/calendar-service.test.ts`—regression tests

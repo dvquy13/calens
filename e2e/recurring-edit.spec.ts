@@ -1,6 +1,6 @@
 import { test, expect, type BrowserContext, type Page, type Worker } from '@playwright/test';
 import { seedExtensionState, withExtension } from './fixtures/harness';
-import { encodeEventId, eventBlockHtml } from './fixtures/gcal-dom';
+import { compactChipLabel, encodeEventId, eventBlockHtml } from './fixtures/gcal-dom';
 
 /**
  * Recurring-event editing end-to-end: side-panel scope control (cases 1-5) and
@@ -552,6 +552,54 @@ test('7. dragging a non-recurring tile writes straight to the event, with no sco
     () => {
       api.seedWeeklySeries({ start: SERIES_START });
       api.seedSingle(SINGLE_ID, SINGLE_START);
+    }
+  );
+});
+
+test('8. dragging the top edge of a short tile (no .gVNoLb) previews the new start time and writes on release', async () => {
+  const api = new FakeCalendarApi();
+  const SHORT_ID = 'shortevent001';
+  const SHORT_START = SERIES_START + 3 * 24 * 60 * 60 * 1000;
+  await withSeries(
+    api,
+    async ({ calendarPage }) => {
+      await calendarPage.evaluate(
+        (html) => (window as AppendWindow).appendToGrid(html),
+        eventBlockHtml({
+          id: 'short-tile',
+          encodedEventId: encodeEventId(SHORT_ID, CAL_SHORT),
+          label: compactChipLabel('10:45'),
+          style: 'position:absolute; left:200px; top:300px; width:120px; height:30px; background:#4285f4;',
+        })
+      );
+      const startTime = calendarPage.locator('#short-tile .EWOIrf');
+      await expect(startTime).toHaveText('10:45');
+
+      // Press inside the top-edge zone, drag down 24px (two 15-minute snaps) and look before releasing.
+      const box = (await calendarPage.locator('#short-tile').boundingBox())!;
+      const x = box.x + box.width / 2;
+      await calendarPage.mouse.move(x, box.y + 3);
+      await calendarPage.mouse.down();
+      await calendarPage.mouse.move(x, box.y + 3 + 12, { steps: 4 });
+      await expect(startTime).toHaveText('11:00');
+      await calendarPage.mouse.move(x, box.y + 3 + 24, { steps: 4 });
+      await expect(startTime).toHaveText('11:15');
+      await calendarPage.mouse.up();
+
+      await expect.poll(() => api.writes().length).toBe(1);
+      expect(api.writes()).toEqual([
+        {
+          method: 'PATCH',
+          path: instancePath(SHORT_ID),
+          query: {},
+          body: { start: { dateTime: iso(SHORT_START + 30 * 60 * 1000) } },
+        },
+      ]);
+      await expect(calendarPage.getByText('Time display update failed')).toHaveCount(0);
+    },
+    () => {
+      api.seedWeeklySeries({ start: SERIES_START });
+      api.seedSingle(SHORT_ID, SHORT_START);
     }
   );
 });

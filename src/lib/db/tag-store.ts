@@ -39,6 +39,21 @@ export async function deleteEventTags(
   ]);
 }
 
+/** Deletes every tag of these events in one transaction (by event, so tags with a stale calendar_id go too). */
+export async function deleteTagsForEvents(
+  db: IDBPDatabase<CalendarDBSchema>,
+  eventIds: string[]
+): Promise<void> {
+  const tx = db.transaction(STORE_NAMES.TAGS, 'readwrite');
+  const index = tx.store.index('event_id');
+  const keys = (await Promise.all(eventIds.map(id => index.getAllKeys(id)))).flat();
+
+  await Promise.all([
+    ...keys.map(key => tx.store.delete(key)),
+    tx.done
+  ]);
+}
+
 export async function deleteCalendarTags(
   db: IDBPDatabase<CalendarDBSchema>,
   calendarId: string

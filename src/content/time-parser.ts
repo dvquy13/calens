@@ -30,6 +30,29 @@ export function extractStartTime(timeText: string): { match: string; hours: numb
 }
 
 /**
+ * Parse the compact chip layout, where the time text is the start time alone
+ * ("18:00", "6:30pm", "9am"); same result shape as extractStartTime. Fully
+ * anchored: a range such as "10:30-11a" or "18:00 – 19:00" is not a start time.
+ *
+ * FRAGILE: Parses Google Calendar DOM strings. Breaking changes if Google updates rendering.
+ */
+export function extractStartOnlyTime(timeText: string): { match: string; hours: number; minutes: number; is12h: boolean } | null {
+  const m = timeText.match(/^\s*((\d{1,2})(?::(\d{2}))?(?:\s*(AM|PM))?)\s*$/i);
+  if (!m) return null;
+
+  const [, match, h, mm, ampmText] = m;
+  // A bare hour with no meridiem ("9") isn't a format Google renders
+  if (mm === undefined && !ampmText) return null;
+
+  let hours = parseInt(h, 10);
+  const minutes = mm === undefined ? 0 : parseInt(mm, 10);
+  const ampm = ampmText?.toUpperCase();
+  if (ampm === 'PM' && hours !== 12) hours += 12;
+  if (ampm === 'AM' && hours === 12) hours = 0;
+  return { match, hours, minutes, is12h: ampm !== undefined };
+}
+
+/**
  * Calculate new time with delta in minutes
  */
 export function addMinutes(hours: number, minutes: number, delta: number): { hours: number; minutes: number } {

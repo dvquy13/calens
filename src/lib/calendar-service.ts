@@ -60,7 +60,8 @@ export class CalendarService {
   }
 
   /**
-   * Fetch events from a calendar with optional filters
+   * Fetch all events from a calendar with optional filters, following nextPageToken.
+   * `maxResults` is the per-page size, not a cap on the total.
    */
   async getEvents(calendarId: string, params: {
     timeMin?: string;
@@ -69,25 +70,34 @@ export class CalendarService {
     orderBy?: string;
     singleEvents?: boolean;
     maxResults?: number;
-  }): Promise<any> {
-    const queryParams = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined) queryParams.set(key, String(value));
-    });
+  }): Promise<{ items: any[] }> {
+    const items: any[] = [];
+    let pageToken: string | undefined;
 
-    const response = await this.fetchWithTokenRefresh(
-      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?${queryParams}`
-    );
-    if (!response.ok) {
-      const errorText = await response.text();
-      diag('api', 'error', 'events.list failed', {
-        endpoint: 'events.list',
-        calendarId,
-        status: response.status,
-        reason: googleErrorReason(errorText),
+    do {
+      const queryParams = new URLSearchParams();
+      Object.entries({ ...params, pageToken }).forEach(([key, value]) => {
+        if (value !== undefined) queryParams.set(key, String(value));
       });
-      throw new Error(`Failed to fetch events for ${calendarId}: ${response.status} ${errorText}`);
-    }
-    return response.json();
+
+      const response = await this.fetchWithTokenRefresh(
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?${queryParams}`
+      );
+      if (!response.ok) {
+        const errorText = await response.text();
+        diag('api', 'error', 'events.list failed', {
+          endpoint: 'events.list',
+          calendarId,
+          status: response.status,
+          reason: googleErrorReason(errorText),
+        });
+        throw new Error(`Failed to fetch events for ${calendarId}: ${response.status} ${errorText}`);
+      }
+      const page = await response.json();
+      items.push(...(page.items ?? []));
+      pageToken = page.nextPageToken;
+    } while (pageToken);
+
+    return { items };
   }
 }

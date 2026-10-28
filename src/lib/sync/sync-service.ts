@@ -56,7 +56,12 @@ export class SyncService {
     userEmail: string,
     onProgress?: (message: string, percent: number) => void
   ): Promise<void> {
-    return this.runLogged('initial', { mode: 'all' }, () => this.doInitialSync(userEmail, onProgress));
+    // Share the chain with incremental syncs so the two never interleave.
+    const run = this.syncChain.then(() =>
+      this.runLogged('initial', { mode: 'all' }, () => this.doInitialSync(userEmail, onProgress))
+    );
+    this.syncChain = run.catch(() => {});
+    return run;
   }
 
   private async doInitialSync(
@@ -113,11 +118,14 @@ export class SyncService {
       totalEvents += eventStores.length;
       completed++;
 
-      // Extract and store tags for all events in this calendar
+      // Extract and store tags for all events in this calendar. Tag IDs
+      // auto-increment, so replace these events' tags rather than appending:
+      // a re-run (sign-in, resync after update) would otherwise duplicate them.
       const allTags = eventStores.flatMap(event =>
         extractTagsForEvent(userEmail, event.id, event.calendar_id, event.description)
       );
 
+      await this.db.deleteTagsForEvents(eventStores.map(event => event.id));
       if (allTags.length > 0) {
         await this.db.batchCreateTags(allTags);
         console.log(`[SyncService] Extracted ${allTags.length} tags from ${eventStores.length} events`);
@@ -219,6 +227,16 @@ export class SyncService {
       // Process updates: created, modified, or deleted
       for (const googleEvent of updatedGoogleEvents) {
         if (googleEvent.status === 'cancelled') {
+          // A move keeps the event ID, so the old calendar's tombstone can arrive
+          // after the new calendar stored the event. Keep that copy.
+          const existing = await this.db.getEvent(googleEvent.id);
+          if (existing && existing.calendar_id !== calendar.id) {
+            diag('sync', 'info', 'cancelled copy skipped: event lives in another calendar', {
+              eventId: googleEvent.id,
+              calendarId: calendar.id,
+            });
+            continue;
+          }
           // Event was deleted - remove event and its tags
           await this.db.deleteEvent(googleEvent.id);
           await this.db.deleteEventTags(googleEvent.id);

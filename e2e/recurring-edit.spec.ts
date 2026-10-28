@@ -11,6 +11,11 @@ import { compactChipLabel, encodeEventId, eventBlockHtml } from './fixtures/gcal
  * description, a split cuts the old series with UNTIL and the removed
  * occurrences come back as `cancelled`. Every write is recorded so the tests
  * assert on the exact method, path and body the extension sent.
+ *
+ * It also models Google's sync tokens (verified live): a list without
+ * `syncToken` returns the live events plus a `nextSyncToken`; a list with one
+ * returns what changed since that token, cancelled events included; combining
+ * `syncToken` with `timeMin` is a 400.
  */
 
 const CAL = 'e2e-test@gmail.com';
@@ -42,6 +47,9 @@ class FakeCalendarApi {
   readonly requests: RecordedRequest[] = [];
   private readonly events = new Map<string, Json>();
   private seq = 0;
+  /** Bumped by every change to a stored event; a sync token is `fake-<version>` at the moment it was issued. */
+  private version = 0;
+  private readonly changedAt = new Map<string, number>();
 
   async install(context: BrowserContext) {
     await context.route(CALENDAR_API, async (route) => {
@@ -82,16 +90,18 @@ class FakeCalendarApi {
       sequence: 0,
     };
     this.events.set(SERIES_ID, master);
+    this.touch(master);
     this.generateInstances(master);
     for (const [index, patch] of Object.entries(opts.overrides ?? {})) {
       const instance = this.events.get(instanceId(SERIES_ID, opts.start + Number(index) * WEEK_MS))!;
       Object.assign(instance, patch);
+      this.touch(instance);
     }
   }
 
   /** Adds a non-recurring event. */
   seedSingle(id: string, start: number) {
-    this.events.set(id, {
+    const event: Json = {
       id,
       summary: 'Standalone',
       status: 'confirmed',
@@ -102,15 +112,34 @@ class FakeCalendarApi {
       updated: iso(start),
       etag: '"1"',
       sequence: 0,
-    });
+    };
+    this.events.set(id, event);
+    this.touch(event);
+  }
+
+  /** A deletion made outside the extension (e.g. in Google Calendar itself): the event turns `cancelled`. */
+  cancel(id: string) {
+    const event = this.events.get(id);
+    if (!event) throw new Error(`fake has no event ${id}`);
+    event.status = 'cancelled';
+    this.touch(event);
+  }
+
+  private touch(event: Json) {
+    this.changedAt.set(event.id, ++this.version);
   }
 
   private handle(method: string, path: string, query: Record<string, string>, body: Json | undefined): { status: number; json: Json } {
+    // Untargeted syncs read the calendar list first; the fake's only calendar is selected.
+    if (method === 'GET' && path === '/calendar/v3/users/me/calendarList') {
+      return { status: 200, json: { items: [{ id: CAL, summary: CAL, primary: true, selected: true, accessRole: 'owner' }] } };
+    }
+
     const rest = path.startsWith(EVENTS_PATH) ? path.slice(EVENTS_PATH.length) : null;
     if (rest === null) return notFound();
 
     if (method === 'POST' && rest === '') return { status: 200, json: this.insert(body!) };
-    if (method === 'GET' && rest === '') return { status: 200, json: { items: this.listSingleEvents() } };
+    if (method === 'GET' && rest === '') return this.list(query);
 
     const [, eventId, sub] = rest.split('/');
     const event = this.events.get(eventId);
@@ -124,9 +153,22 @@ class FakeCalendarApi {
     return notFound();
   }
 
-  /** Like `events.list?singleEvents=true`: expanded instances and single events, cancelled ones included; masters are not returned. */
-  private listSingleEvents(): Json[] {
-    return [...this.events.values()].filter((e) => !e.recurrence);
+  /**
+   * Like `events.list?singleEvents=true`: expanded instances and single events, masters not returned.
+   * Without `syncToken` only live events come back; with one, everything changed since it, cancelled included.
+   */
+  private list(query: Record<string, string>): { status: number; json: Json } {
+    const singles = [...this.events.values()].filter((e) => !e.recurrence);
+    const nextSyncToken = `fake-${this.version}`;
+    if (query.syncToken === undefined) {
+      return { status: 200, json: { items: singles.filter((e) => e.status !== 'cancelled'), nextSyncToken } };
+    }
+    if (query.timeMin || query.timeMax || query.updatedMin || query.orderBy) {
+      return { status: 400, json: { error: { code: 400, message: 'syncToken cannot be combined with timeMin, timeMax, updatedMin or orderBy' } } };
+    }
+    const since = Number(/^fake-(\d+)$/.exec(query.syncToken)?.[1]);
+    if (Number.isNaN(since)) return { status: 410, json: { error: { code: 410, message: 'Sync token is no longer valid' } } };
+    return { status: 200, json: { items: singles.filter((e) => (this.changedAt.get(e.id) ?? 0) > since), nextSyncToken } };
   }
 
   private instancesOf(seriesId: string, query: Record<string, string>): Json[] {
@@ -157,6 +199,7 @@ class FakeCalendarApi {
       sequence: 0,
     };
     this.events.set(id, master);
+    this.touch(master);
     if (master.recurrence) this.generateInstances(master);
     return master;
   }
@@ -165,6 +208,7 @@ class FakeCalendarApi {
     const oldStart = event.start?.dateTime ? Date.parse(event.start.dateTime) : undefined;
     Object.assign(event, body);
     event.updated = iso(Date.now());
+    this.touch(event);
 
     if (!event.recurrence) return event;
 
@@ -175,11 +219,15 @@ class FakeCalendarApi {
       for (const occurrence of occurrences) {
         occurrence.start = { dateTime: iso(Date.parse(occurrence.start.dateTime) + delta) };
         occurrence.end = { dateTime: iso(Date.parse(occurrence.end.dateTime) + delta) };
+        this.touch(occurrence);
       }
     }
     for (const [key, value] of Object.entries(body)) {
       if (['start', 'end', 'recurrence'].includes(key)) continue;
-      for (const occurrence of occurrences) occurrence[key] = value;
+      for (const occurrence of occurrences) {
+        occurrence[key] = value;
+        this.touch(occurrence);
+      }
     }
     if (body.recurrence) this.generateInstances(event);
     return event;
@@ -190,17 +238,23 @@ class FakeCalendarApi {
     const starts = occurrenceStarts(master);
     const wanted = new Set(starts.map((t) => instanceId(master.id, t)));
     for (const e of this.events.values()) {
-      if (e.recurringEventId === master.id && !wanted.has(e.id)) e.status = 'cancelled';
+      if (e.recurringEventId === master.id && !wanted.has(e.id) && e.status !== 'cancelled') {
+        e.status = 'cancelled';
+        this.touch(e);
+      }
     }
     const durationMs = Date.parse(master.end.dateTime) - Date.parse(master.start.dateTime);
     for (const t of starts) {
       const id = instanceId(master.id, t);
       const existing = this.events.get(id);
       if (existing) {
-        existing.status = 'confirmed';
+        if (existing.status !== 'confirmed') {
+          existing.status = 'confirmed';
+          this.touch(existing);
+        }
         continue;
       }
-      this.events.set(id, {
+      const instance: Json = {
         id,
         recurringEventId: master.id,
         originalStartTime: { dateTime: iso(t) },
@@ -215,7 +269,9 @@ class FakeCalendarApi {
         updated: master.updated,
         etag: '"1"',
         sequence: 0,
-      });
+      };
+      this.events.set(id, instance);
+      this.touch(instance);
     }
   }
 }
@@ -601,5 +657,47 @@ test('8. dragging the top edge of a short tile (no .gVNoLb) previews the new sta
       api.seedWeeklySeries({ start: SERIES_START });
       api.seedSingle(SHORT_ID, SHORT_START);
     }
+  );
+});
+
+test('9. after a full sync, the next sync asks only for changes since the stored token and applies them', async () => {
+  const api = new FakeCalendarApi();
+  const ADDED_ID = 'addedlater001';
+  const ADDED_START = SERIES_START + 4 * 24 * 60 * 60 * 1000;
+  const eventLists = (from: number) =>
+    api.requests.slice(from).filter((r) => r.method === 'GET' && r.path === EVENTS_PATH);
+  await withSeries(
+    api,
+    async ({ sidepanel }) => {
+      // The service worker cannot message itself, so sync and read local state through the panel.
+      const triggerSync = () =>
+        sidepanel.evaluate(() => chrome.runtime.sendMessage({ type: 'TRIGGER_SYNC' }) as Promise<{ success: boolean; error?: string }>);
+      const localEvent = (id: string) =>
+        sidepanel.evaluate((eventId) => chrome.runtime.sendMessage({ type: 'GET_EVENT', eventId }) as Promise<{ success: boolean }>, id);
+
+      // No stored token yet: a windowed full sync, which hands back the first token.
+      expect(await triggerSync()).toEqual({ success: true });
+      await expect.poll(async () => (await localEvent(occurrenceId(2))).success).toBe(true);
+      expect((await localEvent(ADDED_ID)).success).toBe(false);
+
+      // Changes made outside the extension, after that token was issued.
+      api.seedSingle(ADDED_ID, ADDED_START);
+      api.cancel(occurrenceId(2));
+
+      const mark = api.requests.length;
+      expect(await triggerSync()).toEqual({ success: true });
+
+      const lists = eventLists(mark);
+      expect(lists).toHaveLength(1);
+      expect(lists[0].query.syncToken).toMatch(/^fake-\d+$/);
+      expect(lists[0].query.timeMin).toBeUndefined();
+      expect(lists[0].query.timeMax).toBeUndefined();
+
+      expect((await localEvent(ADDED_ID)).success).toBe(true);
+      expect((await localEvent(occurrenceId(2))).success).toBe(false);
+      // Untouched events stay.
+      expect((await localEvent(occurrenceId(1))).success).toBe(true);
+    },
+    () => api.seedWeeklySeries({ start: SERIES_START })
   );
 });

@@ -19,6 +19,7 @@ export interface DiagnosticsCalendar {
   last_sync: string | null; // ISO
   events_updated: number | null;
   stored_events: number;
+  incremental_ready: boolean; // has a sync token; the token itself is never reported
 }
 
 export interface DiagnosticsReport {
@@ -81,6 +82,7 @@ export async function buildDiagnosticsReport(
       last_sync: lastSyncToIso(meta?.value?.last_sync),
       events_updated: typeof meta?.value?.events_updated === 'number' ? meta.value.events_updated : null,
       stored_events: events.length,
+      incremental_ready: Boolean(meta?.value?.sync_token),
     });
   }
   reportCalendars.sort((a, b) => compareCalendarLabels(a.label, b.label));

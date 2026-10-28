@@ -6,6 +6,14 @@
 import { diag } from './diag-log';
 import { googleErrorReason } from './error-utils';
 
+/** events.list rejected a stored sync token (HTTP 410): the caller must do a full sync. */
+export class SyncTokenExpiredError extends Error {
+  constructor(calendarId: string) {
+    super(`Sync token expired for ${calendarId}`);
+    this.name = 'SyncTokenExpiredError';
+  }
+}
+
 export class CalendarService {
   constructor(private getToken: () => Promise<string>) {}
 
@@ -62,6 +70,8 @@ export class CalendarService {
   /**
    * Fetch all events from a calendar with optional filters, following nextPageToken.
    * `maxResults` is the per-page size, not a cap on the total.
+   * `nextSyncToken` (last page only) feeds a later call's `syncToken`; Google rejects
+   * `syncToken` combined with `timeMin`/`timeMax`/`updatedMin`/`orderBy`.
    */
   async getEvents(calendarId: string, params: {
     timeMin?: string;
@@ -70,9 +80,11 @@ export class CalendarService {
     orderBy?: string;
     singleEvents?: boolean;
     maxResults?: number;
-  }): Promise<{ items: any[] }> {
+    syncToken?: string;
+  }): Promise<{ items: any[]; nextSyncToken?: string }> {
     const items: any[] = [];
     let pageToken: string | undefined;
+    let nextSyncToken: string | undefined;
 
     do {
       const queryParams = new URLSearchParams();
@@ -83,6 +95,10 @@ export class CalendarService {
       const response = await this.fetchWithTokenRefresh(
         `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?${queryParams}`
       );
+      if (response.status === 410) {
+        diag('api', 'warn', 'sync token expired', { calendarId });
+        throw new SyncTokenExpiredError(calendarId);
+      }
       if (!response.ok) {
         const errorText = await response.text();
         diag('api', 'error', 'events.list failed', {
@@ -96,8 +112,9 @@ export class CalendarService {
       const page = await response.json();
       items.push(...(page.items ?? []));
       pageToken = page.nextPageToken;
+      nextSyncToken = page.nextSyncToken;
     } while (pageToken);
 
-    return { items };
+    return { items, nextSyncToken };
   }
 }

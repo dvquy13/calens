@@ -35,7 +35,7 @@ const db = {
     { id: GROUP, primary: false, selected: false, summary: 'Team' },
   ]),
   getUserMetadata: vi.fn(async (_u: string, key: string) =>
-    key === `last_sync_${EMAIL}` ? { value: { last_sync: new Date('2026-05-01T10:00:00Z'), events_updated: 4 } } : undefined),
+    key === `last_sync_${EMAIL}` ? { value: { last_sync: new Date('2026-05-01T10:00:00Z'), events_updated: 4, sync_token: 'secret-token' } } : undefined),
   getCalendarEvents: vi.fn(async (_u: string, id: string) => (id === EMAIL ? [{}, {}, {}] : [])),
 };
 
@@ -54,10 +54,11 @@ describe('buildDiagnosticsReport', () => {
     expect(report.user.email).toBe(EMAIL);
     expect(report.auth).toMatchObject({ hasToken: true, tokenExpired: false });
     expect(report.calendars).toEqual([
-      { label: 'primary', selected: true, last_sync: '2026-05-01T10:00:00.000Z', events_updated: 4, stored_events: 3 },
-      { label: 'cal-1 (group)', selected: false, last_sync: null, events_updated: null, stored_events: 0 },
+      { label: 'primary', selected: true, last_sync: '2026-05-01T10:00:00.000Z', events_updated: 4, stored_events: 3, incremental_ready: true },
+      { label: 'cal-1 (group)', selected: false, last_sync: null, events_updated: null, stored_events: 0, incremental_ready: false },
     ]);
     expect(report.panelState).toEqual({ selectedEventId: 'e1' });
+    expect(JSON.stringify(report)).not.toContain('secret-token');
   });
 
   it('redacts calendar IDs and emails in the log; email only in the header', async () => {

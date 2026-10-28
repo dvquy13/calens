@@ -42,6 +42,12 @@ export async function withExtension(run: (harness: Harness) => Promise<void>) {
       route.fulfill({ status: 204 })
     );
 
+    // Untargeted syncs (panel refresh, alarm) read the calendar list first; an empty list changes nothing
+    // locally. Registered before the specs' own routes, which therefore win for the same URL.
+    await context.route('https://www.googleapis.com/calendar/v3/users/me/calendarList', (route) =>
+      route.fulfill({ json: { items: [] } })
+    );
+
     const openPages = async () => {
       const calendarPage = await context.newPage();
       await calendarPage.goto(FIXTURE_URL);
@@ -96,9 +102,9 @@ export async function seedExtensionState(sw: Worker, email: string, calendars: S
       ) => cb('fake-identity-token');
       (chrome.identity as any).removeCachedAuthToken = (_opts: unknown, cb: () => void) => cb();
 
-      // IndexedDB: the given calendars, all selected and already synced ~1h ago so
-      // SyncService._doIncrementalSync takes the incremental (not full-sync)
-      // path and actually calls the (mocked) Calendar API.
+      // IndexedDB: the given calendars, all selected, with sync metadata but no
+      // `sync_token`, so the first SyncService._doIncrementalSync per calendar
+      // does a windowed full sync against the (mocked) Calendar API.
       //
       // Schema mirrors src/lib/db/database.ts's own upgrade() exactly (same
       // store names/keyPaths/indexes) since this is a fresh profile whose

@@ -80,6 +80,7 @@ export interface SyncMetadata {
   calendar_name: string;
   events_updated: number;
   last_sync: Date;
+  sync_token?: string; // events.list nextSyncToken; absent means the next sync is full
 }
 
 export interface FullSyncMetadata {

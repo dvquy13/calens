@@ -3,12 +3,12 @@
  * Handles initial sync and incremental updates of calendar data from Google Calendar API to IndexedDB
  */
 
-import { CalendarService } from '../calendar-service';
+import { CalendarService, SyncTokenExpiredError } from '../calendar-service';
 import { CalendarDatabase } from '../db/database';
-import { CalendarStore, EventStore, SYNC_METADATA_KEYS } from '@/types/database';
+import { CalendarStore, SYNC_METADATA_KEYS } from '@/types/database';
 import { transformGoogleEvent } from './event-transformer';
 import { extractTagsForEvent } from './tag-extractor';
-import { syncCalendarFull } from './calendar-reconciler';
+import { syncCalendarFull, syncCalendarList } from './calendar-reconciler';
 import { resolveCalendarId } from '../event-id-utils';
 import { diag } from '../diag-log';
 
@@ -88,11 +88,8 @@ export class SyncService {
     await this.db.batchCreateCalendars(calendarStores);
     console.log(`[SyncService] Stored ${calendarStores.length} calendars`);
 
-    // Step 2: Fetch events from selected calendars (1 year past to 1 year future)
+    // Step 2: Full-sync the selected calendars (1 year past to 1 year future)
     const now = new Date();
-    const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
-    const oneYearAhead = new Date(now.getFullYear() + 1, now.getMonth(), now.getDate());
-
     const selectedCalendars = calendarStores.filter(c => c.selected);
     let totalEvents = 0;
     let completed = 0;
@@ -103,43 +100,8 @@ export class SyncService {
         5 + (completed / selectedCalendars.length) * 90
       );
 
-      const response = await this.calendarService.getEvents(calendar.id, {
-        timeMin: oneYearAgo.toISOString(),
-        timeMax: oneYearAhead.toISOString(),
-        singleEvents: true,
-        maxResults: 2500 // Google Calendar API limit
-      });
-
-      const eventStores: EventStore[] = (response.items || []).map((event: any) =>
-        transformGoogleEvent(userEmail, calendar.id, event)
-      );
-
-      await this.db.batchCreateEvents(eventStores);
-      totalEvents += eventStores.length;
+      totalEvents += await syncCalendarFull(userEmail, calendar, this.calendarService, this.db);
       completed++;
-
-      // Extract and store tags for all events in this calendar. Tag IDs
-      // auto-increment, so replace these events' tags rather than appending:
-      // a re-run (sign-in, resync after update) would otherwise duplicate them.
-      const allTags = eventStores.flatMap(event =>
-        extractTagsForEvent(userEmail, event.id, event.calendar_id, event.description)
-      );
-
-      await this.db.deleteTagsForEvents(eventStores.map(event => event.id));
-      if (allTags.length > 0) {
-        await this.db.batchCreateTags(allTags);
-        console.log(`[SyncService] Extracted ${allTags.length} tags from ${eventStores.length} events`);
-      }
-
-      // Store sync metadata for this calendar
-      await this.db.setUserMetadata(userEmail, `${SYNC_METADATA_KEYS.LAST_SYNC_PREFIX}${calendar.id}`, {
-        calendar_id: calendar.id,
-        calendar_name: calendar.summary,
-        events_updated: eventStores.length,
-        last_sync: now
-      });
-
-      console.log(`[SyncService] Stored ${eventStores.length} events from ${calendar.summary}`);
     }
 
     // Step 3: Store global sync timestamp
@@ -156,7 +118,7 @@ export class SyncService {
 
   /**
    * Perform incremental sync for a user
-   * Fetches only events updated since last sync
+   * Fetches only the changes since each calendar's stored sync token (full sync when it has none or it expired)
    * @param userEmail - User email to sync for
    * @param targetCalendarIds - Optional array of calendar IDs to sync. If not provided, syncs all selected calendars
    */
@@ -175,6 +137,11 @@ export class SyncService {
     targetCalendarIds?: string[]
   ): Promise<{ calendars: number; events: number }> {
     console.log('[SyncService] Starting incremental sync for', userEmail, targetCalendarIds ? `(targeted: ${targetCalendarIds.join(', ')})` : '(all calendars)');
+
+    // Untargeted runs first pick up calendars the user newly selected in Google.
+    if (!targetCalendarIds) {
+      await syncCalendarList(userEmail, this.calendarService, this.db);
+    }
 
     const calendars = await this.db.getUserCalendars(userEmail);
     let totalUpdated = 0;
@@ -204,22 +171,27 @@ export class SyncService {
         `${SYNC_METADATA_KEYS.LAST_SYNC_PREFIX}${calendar.id}`
       );
 
-      const lastSyncTime = lastSyncMeta?.value?.last_sync;
+      const syncToken: string | undefined = lastSyncMeta?.value?.sync_token;
 
-      if (!lastSyncTime) {
-        console.log(`[SyncService] No sync history for ${calendar.summary}, performing full sync`);
-        await syncCalendarFull(userEmail, calendar, this.calendarService, this.db);
-        diag('sync', 'info', 'calendar full sync', { calendarId: calendar.id });
+      if (!syncToken) {
+        console.log(`[SyncService] No sync token for ${calendar.summary}, performing full sync`);
+        totalUpdated += await this.fullSyncCalendar(userEmail, calendar, 'no sync token');
         continue;
       }
 
-      // Fetch only events updated since last sync
-      const response = await this.calendarService.getEvents(calendar.id, {
-        updatedMin: new Date(lastSyncTime).toISOString(),
-        orderBy: 'updated',
-        singleEvents: true,
-        maxResults: 500
-      });
+      // Fetch only what changed since the stored sync token
+      let response;
+      try {
+        response = await this.calendarService.getEvents(calendar.id, {
+          syncToken,
+          singleEvents: true,
+          maxResults: 2500
+        });
+      } catch (error) {
+        if (!(error instanceof SyncTokenExpiredError)) throw error;
+        totalUpdated += await this.fullSyncCalendar(userEmail, calendar, 'token expired');
+        continue;
+      }
 
       const updatedGoogleEvents = response.items || [];
       console.log(`[SyncService] ${calendar.summary}: ${updatedGoogleEvents.length} updated events`);
@@ -268,17 +240,18 @@ export class SyncService {
       }
 
       totalUpdated += updatedGoogleEvents.length;
-      diag('sync', 'info', 'calendar synced', { calendarId: calendar.id, mode: 'incremental', updated: updatedGoogleEvents.length });
+      diag('sync', 'info', 'calendar synced', { calendarId: calendar.id, mode: 'token', updated: updatedGoogleEvents.length });
 
-      // Update sync timestamp. Known gap: this is the client clock *after* the
-      // fetch, so an event saved during the request (or under clock skew) falls
-      // before the next updatedMin and is skipped until a full sync. A proper
-      // fix is the API's syncToken.
+      if (!response.nextSyncToken) {
+        diag('sync', 'warn', 'sync returned no sync token', { calendarId: calendar.id });
+      }
+
       await this.db.setUserMetadata(userEmail, `${SYNC_METADATA_KEYS.LAST_SYNC_PREFIX}${calendar.id}`, {
         calendar_id: calendar.id,
         calendar_name: calendar.summary,
         events_updated: updatedGoogleEvents.length,
-        last_sync: new Date()
+        last_sync: new Date(),
+        sync_token: response.nextSyncToken
       });
     }
 
@@ -291,5 +264,17 @@ export class SyncService {
 
     console.log(`[SyncService] Incremental sync complete: ${totalUpdated} events updated`);
     return { calendars: calendarsToSync.length, events: totalUpdated };
+  }
+
+  /** Full-sync one calendar in place of a token sync; returns the events stored. */
+  private async fullSyncCalendar(
+    userEmail: string,
+    calendar: CalendarStore,
+    reason: 'no sync token' | 'token expired'
+  ): Promise<number> {
+    diag('sync', 'info', 'calendar full sync', { calendarId: calendar.id, reason });
+    const stored = await syncCalendarFull(userEmail, calendar, this.calendarService, this.db);
+    diag('sync', 'info', 'calendar synced', { calendarId: calendar.id, mode: 'full', updated: stored });
+    return stored;
   }
 }

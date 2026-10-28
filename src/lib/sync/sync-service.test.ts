@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SyncService } from './sync-service';
-import type { CalendarService } from '../calendar-service';
+import { SyncTokenExpiredError, type CalendarService } from '../calendar-service';
 import type { CalendarDatabase } from '../db/database';
 
 vi.mock('../diag-log', () => ({ diag: vi.fn() }));
@@ -34,10 +34,14 @@ function makeFakeDb() {
       makeCalendar(PRIMARY_ID, 'someone@gmail.com'),
       makeCalendar(GROUP_ID, 'Produce'),
     ]),
-    // Every calendar has synced before, so the incremental (updatedMin) path runs.
+    // Every calendar has synced before, so the incremental (syncToken) path runs.
     getUserMetadata: vi.fn().mockResolvedValue({
-      value: { last_sync: new Date(Date.now() - 3600_000) },
+      value: { last_sync: new Date(Date.now() - 3600_000), sync_token: 'stored-token' },
     }),
+    createCalendar: vi.fn().mockResolvedValue(undefined),
+    batchCreateEvents: vi.fn().mockResolvedValue(undefined),
+    getCalendarEvents: vi.fn().mockResolvedValue([]),
+    deleteTagsForEvents: vi.fn().mockResolvedValue(undefined),
     getEvent: vi.fn().mockResolvedValue(undefined),
     createEvent: vi.fn().mockResolvedValue(undefined),
     updateEvent: vi.fn().mockResolvedValue(undefined),
@@ -155,8 +159,10 @@ function makeStoringDb(calendars: ReturnType<typeof makeCalendar>[]) {
     events,
     getUserCalendars: vi.fn().mockResolvedValue(calendars),
     getUserMetadata: vi.fn().mockResolvedValue({
-      value: { last_sync: new Date(Date.now() - 3600_000) },
+      value: { last_sync: new Date(Date.now() - 3600_000), sync_token: 'stored-token' },
     }),
+    createCalendar: vi.fn().mockResolvedValue(undefined),
+    getCalendarEvents: vi.fn().mockResolvedValue([]),
     getEvent: vi.fn(async (id: string) => events.get(id)),
     createEvent: vi.fn(async (e: { id: string; calendar_id: string }) => { events.set(e.id, e); }),
     updateEvent: vi.fn(async (e: { id: string; calendar_id: string }) => { events.set(e.id, e); }),
@@ -191,6 +197,10 @@ describe('SyncService.performIncrementalSync moved events', () => {
     // Group calendar first, so its confirmed copy is stored before the primary's tombstone.
     const db = makeStoringDb([makeCalendar(GROUP_ID, 'Produce'), makeCalendar(PRIMARY_ID, 'someone@gmail.com')]);
     const calendarService = {
+      getCalendars: vi.fn().mockResolvedValue([
+        { id: GROUP_ID, summary: 'Produce', selected: true },
+        { id: PRIMARY_ID, summary: 'someone@gmail.com', selected: true },
+      ]),
       getEvents: vi.fn(async (calendarId: string) =>
         calendarId === GROUP_ID
           ? { items: [googleEvent(MOVED_ID, 'confirmed')] }
@@ -214,6 +224,7 @@ describe('SyncService.performIncrementalSync moved events', () => {
     const db = makeStoringDb([makeCalendar(PRIMARY_ID, 'someone@gmail.com')]);
     db.events.set(MOVED_ID, { id: MOVED_ID, calendar_id: PRIMARY_ID });
     const calendarService = {
+      getCalendars: vi.fn().mockResolvedValue([{ id: PRIMARY_ID, summary: 'someone@gmail.com', selected: true }]),
       getEvents: vi.fn().mockResolvedValue({ items: [googleEvent(MOVED_ID, 'cancelled')] }),
     };
     const service = new SyncService(
@@ -251,7 +262,7 @@ describe('SyncService initial and incremental syncs', () => {
       return value;
     };
     const calendarService = {
-      getCalendars: vi.fn(() => track([{ id: PRIMARY_ID, summary: 'someone@gmail.com', primary: true }])),
+      getCalendars: vi.fn(() => track([{ id: PRIMARY_ID, summary: 'someone@gmail.com', primary: true, selected: true }])),
       getEvents: vi.fn((_calendarId: string) => track({ items: [] })),
     };
     const service = new SyncService(
@@ -264,7 +275,9 @@ describe('SyncService initial and incremental syncs', () => {
       service.performIncrementalSync(USER),
     ]);
 
-    expect(calendarService.getCalendars).toHaveBeenCalledTimes(1);
+    // The initial sync lists calendars and full-syncs one; the untargeted incremental
+    // sync lists them again and token-syncs it.
+    expect(calendarService.getCalendars).toHaveBeenCalledTimes(2);
     expect(calendarService.getEvents).toHaveBeenCalledTimes(2);
     expect(maxInFlight).toBe(1);
   });
@@ -302,5 +315,145 @@ describe('SyncService.performInitialSync tags', () => {
     await service.performInitialSync(USER);
 
     expect(tags.map(t => t.tag_name).sort()).toEqual(['deep', 'work']);
+  });
+});
+
+/**
+ * Incremental sync runs on the calendar's sync token. A calendar without one (new,
+ * or upgraded from the updatedMin scheme) or whose token expired gets a full sync.
+ */
+function makeMemoryDb(calendars: ReturnType<typeof makeCalendar>[], tokens: Record<string, string> = {}) {
+  const metadata = new Map<string, any>(
+    Object.entries(tokens).map(([id, sync_token]) => [`last_sync_${id}`, { last_sync: new Date(), sync_token }])
+  );
+  const events = new Map<string, any>();
+  return {
+    events,
+    metadata,
+    calendars,
+    getUserCalendars: vi.fn(async () => calendars),
+    getUserMetadata: vi.fn(async (_u: string, key: string) => (metadata.has(key) ? { value: metadata.get(key) } : undefined)),
+    setUserMetadata: vi.fn(async (_u: string, key: string, value: unknown) => { metadata.set(key, value); }),
+    createCalendar: vi.fn(async (c: ReturnType<typeof makeCalendar>) => {
+      if (!calendars.some(x => x.id === c.id)) calendars.push(c);
+    }),
+    updateCalendar: vi.fn().mockResolvedValue(undefined),
+    batchCreateEvents: vi.fn(async (rows: any[]) => { rows.forEach(r => events.set(r.id, r)); }),
+    getCalendarEvents: vi.fn(async (_u: string, calendarId: string) =>
+      [...events.values()].filter(e => e.calendar_id === calendarId)),
+    getEvent: vi.fn(async (id: string) => events.get(id)),
+    createEvent: vi.fn(async (e: any) => { events.set(e.id, e); }),
+    updateEvent: vi.fn(async (e: any) => { events.set(e.id, e); }),
+    deleteEvent: vi.fn(async (id: string) => { events.delete(id); }),
+    deleteEventTags: vi.fn().mockResolvedValue(undefined),
+    deleteTagsForEvents: vi.fn().mockResolvedValue(undefined),
+    batchCreateTags: vi.fn().mockResolvedValue(undefined),
+  };
+}
+
+function liveEvent(id: string) {
+  return { ...googleEvent(id, 'confirmed'), start: { dateTime: new Date(Date.now() - 86_400_000).toISOString() }, end: { dateTime: new Date().toISOString() } };
+}
+
+describe('SyncService.performIncrementalSync sync tokens', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  function setup(db: ReturnType<typeof makeMemoryDb>, getEvents: ReturnType<typeof vi.fn>, getCalendars = vi.fn()) {
+    const calendarService = { getEvents, getCalendars };
+    const service = new SyncService(
+      calendarService as unknown as CalendarService,
+      db as unknown as CalendarDatabase
+    );
+    return { service, calendarService };
+  }
+
+  it('runs a windowed full sync when the calendar has no token, and stores the token it returns', async () => {
+    const db = makeMemoryDb([makeCalendar(PRIMARY_ID, 'someone@gmail.com')]);
+    const getEvents = vi.fn().mockResolvedValue({ items: [liveEvent('e1')], nextSyncToken: 'tok-1' });
+    const { service } = setup(db, getEvents);
+
+    await service.performIncrementalSync(USER, ['someone@m']);
+
+    expect(getEvents).toHaveBeenCalledTimes(1);
+    const params = getEvents.mock.calls[0][1];
+    expect(params.syncToken).toBeUndefined();
+    expect(params.timeMin).toBeDefined();
+    expect(params.timeMax).toBeDefined();
+    expect(db.events.has('e1')).toBe(true);
+    expect(db.metadata.get(`last_sync_${PRIMARY_ID}`).sync_token).toBe('tok-1');
+  });
+
+  it('fetches with the stored token and stores the next one', async () => {
+    const db = makeMemoryDb([makeCalendar(PRIMARY_ID, 'someone@gmail.com')], { [PRIMARY_ID]: 'tok-old' });
+    const getEvents = vi.fn().mockResolvedValue({ items: [liveEvent('e2')], nextSyncToken: 'tok-new' });
+    const { service } = setup(db, getEvents);
+
+    await service.performIncrementalSync(USER, ['someone@m']);
+
+    expect(getEvents).toHaveBeenCalledTimes(1);
+    const params = getEvents.mock.calls[0][1];
+    expect(params.syncToken).toBe('tok-old');
+    for (const name of ['timeMin', 'timeMax', 'updatedMin', 'orderBy']) expect(params[name]).toBeUndefined();
+    expect(db.events.has('e2')).toBe(true);
+    expect(db.metadata.get(`last_sync_${PRIMARY_ID}`).sync_token).toBe('tok-new');
+  });
+
+  it('falls back to a full sync with a fresh token when the stored token expired', async () => {
+    const db = makeMemoryDb([makeCalendar(PRIMARY_ID, 'someone@gmail.com')], { [PRIMARY_ID]: 'tok-stale' });
+    const getEvents = vi.fn()
+      .mockRejectedValueOnce(new SyncTokenExpiredError(PRIMARY_ID))
+      .mockResolvedValueOnce({ items: [liveEvent('e3')], nextSyncToken: 'tok-fresh' });
+    const { service } = setup(db, getEvents);
+
+    await service.performIncrementalSync(USER, ['someone@m']);
+
+    expect(getEvents).toHaveBeenCalledTimes(2);
+    expect(getEvents.mock.calls[0][1].syncToken).toBe('tok-stale');
+    expect(getEvents.mock.calls[1][1].syncToken).toBeUndefined();
+    expect(getEvents.mock.calls[1][1].timeMin).toBeDefined();
+    expect(db.events.has('e3')).toBe(true);
+    expect(db.metadata.get(`last_sync_${PRIMARY_ID}`).sync_token).toBe('tok-fresh');
+  });
+
+  it('propagates errors other than an expired token', async () => {
+    const db = makeMemoryDb([makeCalendar(PRIMARY_ID, 'someone@gmail.com')], { [PRIMARY_ID]: 'tok' });
+    const { service } = setup(db, vi.fn().mockRejectedValue(new Error('boom')));
+
+    await expect(service.performIncrementalSync(USER, ['someone@m'])).rejects.toThrow('boom');
+    expect(db.metadata.get(`last_sync_${PRIMARY_ID}`).sync_token).toBe('tok');
+  });
+
+  it('full-syncs a newly selected calendar on an untargeted sync', async () => {
+    const NEW_ID = 'fresh@group.calendar.google.com';
+    const db = makeMemoryDb([makeCalendar(PRIMARY_ID, 'someone@gmail.com')], { [PRIMARY_ID]: 'tok-p' });
+    const getEvents = vi.fn(async (_id: string, params: { syncToken?: string; timeMin?: string }) =>
+      ({ items: [], nextSyncToken: params.syncToken ? 'tok-next' : 'tok-first' }));
+    const getCalendars = vi.fn().mockResolvedValue([
+      { id: PRIMARY_ID, summary: 'someone@gmail.com', selected: true },
+      { id: NEW_ID, summary: 'Fresh', selected: true },
+    ]);
+    const { service } = setup(db, getEvents, getCalendars);
+
+    await service.performIncrementalSync(USER);
+
+    const newCalendarCalls = getEvents.mock.calls.filter(c => c[0] === NEW_ID);
+    expect(newCalendarCalls[0][1].timeMin).toBeDefined();
+    expect(newCalendarCalls[0][1].syncToken).toBeUndefined();
+    expect(db.metadata.get(`last_sync_${NEW_ID}`).sync_token).toBeDefined();
+    const primaryCalls = getEvents.mock.calls.filter(c => c[0] === PRIMARY_ID);
+    expect(primaryCalls).toHaveLength(1);
+    expect(primaryCalls[0][1].syncToken).toBe('tok-p');
+  });
+
+  it('does not list calendars on a targeted sync', async () => {
+    const db = makeMemoryDb([makeCalendar(PRIMARY_ID, 'someone@gmail.com')], { [PRIMARY_ID]: 'tok-p' });
+    const getCalendars = vi.fn();
+    const { service } = setup(db, vi.fn().mockResolvedValue({ items: [], nextSyncToken: 'tok-n' }), getCalendars);
+
+    await service.performIncrementalSync(USER, ['someone@m']);
+
+    expect(getCalendars).not.toHaveBeenCalled();
   });
 });

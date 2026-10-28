@@ -1,6 +1,6 @@
 /**
  * Calendar Reconciler
- * Handles calendar list synchronization and full reconciliation
+ * Handles calendar list synchronization and per-calendar full sync
  */
 
 import { CalendarService } from '../calendar-service';
@@ -8,6 +8,7 @@ import { CalendarDatabase } from '../db/database';
 import { CalendarStore, EventStore, SYNC_METADATA_KEYS } from '@/types/database';
 import { transformGoogleEvent } from './event-transformer';
 import { extractTagsForEvent } from './tag-extractor';
+import { diag } from '../diag-log';
 
 /**
  * Sync calendar list to detect selection changes
@@ -51,69 +52,34 @@ export async function syncCalendarList(
 }
 
 /**
- * Full reconciliation to clean up orphaned events
+ * The span a full sync covers: one calendar year back and ahead of `now`.
+ * Sync tokens issued for a windowed list keep reporting changes outside it.
  */
-export async function performFullReconciliation(
-  userEmail: string,
-  calendarId: string,
-  calendarService: CalendarService,
-  db: CalendarDatabase
-): Promise<void> {
-  console.log(`[SyncService] Starting full reconciliation for calendar ${calendarId}`);
-
-  // Fetch all event IDs currently in Google Calendar
-  const googleEventIds = new Set<string>();
-
-  const now = new Date();
-  const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
-
-  const response = await calendarService.getEvents(calendarId, {
-    timeMin: oneYearAgo.toISOString(),
-    timeMax: now.toISOString(),
-    singleEvents: true,
-    maxResults: 2500
-  });
-
-  for (const event of response.items || []) {
-    googleEventIds.add(event.id);
-  }
-
-  // Get all local event IDs for this calendar
-  const localEvents = await db.getCalendarEvents(userEmail, calendarId);
-
-  // Delete events that no longer exist in Google
-  let orphanedCount = 0;
-  for (const localEvent of localEvents) {
-    if (!googleEventIds.has(localEvent.id)) {
-      await db.deleteEvent(localEvent.id);
-      await db.deleteEventTags(localEvent.id);
-      orphanedCount++;
-      console.log(`[SyncService] Removed orphaned event and tags: ${localEvent.id}`);
-    }
-  }
-
-  console.log(`[SyncService] Full reconciliation complete: ${orphanedCount} orphaned events removed`);
+export function syncWindow(now: Date = new Date()): { timeMin: Date; timeMax: Date } {
+  return {
+    timeMin: new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()),
+    timeMax: new Date(now.getFullYear() + 1, now.getMonth(), now.getDate()),
+  };
 }
 
 /**
- * Perform full sync for a single calendar
+ * Perform full sync for a single calendar: store the window's events, drop
+ * stored in-window events Google no longer returns, and keep the sync token
+ * that lets later syncs fetch only changes. Returns the number of events stored.
  */
 export async function syncCalendarFull(
   userEmail: string,
   calendar: CalendarStore,
   calendarService: CalendarService,
   db: CalendarDatabase
-): Promise<void> {
+): Promise<number> {
   // Store calendar
   await db.createCalendar(calendar);
 
-  // Fetch all events for this calendar
-  const now = new Date();
-  const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
-
+  const { timeMin, timeMax } = syncWindow();
   const response = await calendarService.getEvents(calendar.id, {
-    timeMin: oneYearAgo.toISOString(),
-    timeMax: now.toISOString(),
+    timeMin: timeMin.toISOString(),
+    timeMax: timeMax.toISOString(),
     singleEvents: true,
     maxResults: 2500
   });
@@ -121,20 +87,31 @@ export async function syncCalendarFull(
   const eventStores: EventStore[] = (response.items || []).map((event: any) =>
     transformGoogleEvent(userEmail, calendar.id, event)
   );
-
-  // Clear all existing tags for this calendar to ensure clean state
-  await db.deleteCalendarTags(calendar.id);
-
   await db.batchCreateEvents(eventStores);
 
-  // Extract and store tags for all events
+  // Prune events deleted while no token covered them. Only this calendar's rows
+  // are considered, so an event now owned by another calendar is never touched,
+  // and rows outside the window stay (the list didn't ask about them).
+  const returnedIds = new Set(eventStores.map(event => event.id));
+  const pruned = (await db.getCalendarEvents(userEmail, calendar.id)).filter(
+    event => event.start >= timeMin && event.start <= timeMax && !returnedIds.has(event.id)
+  );
+  for (const event of pruned) {
+    await db.deleteEvent(event.id);
+  }
+
+  // Tag IDs auto-increment, so replace these events' tags rather than appending.
   const allTags = eventStores.flatMap(event =>
     extractTagsForEvent(userEmail, event.id, event.calendar_id, event.description)
   );
-
+  await db.deleteTagsForEvents([...returnedIds, ...pruned.map(event => event.id)]);
   if (allTags.length > 0) {
     await db.batchCreateTags(allTags);
     console.log(`[SyncService] Extracted ${allTags.length} tags for calendar ${calendar.summary}`);
+  }
+
+  if (!response.nextSyncToken) {
+    diag('sync', 'warn', 'full sync returned no sync token', { calendarId: calendar.id });
   }
 
   // Store sync metadata
@@ -142,8 +119,10 @@ export async function syncCalendarFull(
     calendar_id: calendar.id,
     calendar_name: calendar.summary,
     events_updated: eventStores.length,
-    last_sync: now
+    last_sync: new Date(),
+    sync_token: response.nextSyncToken
   });
 
-  console.log(`[SyncService] Full sync for ${calendar.summary}: ${eventStores.length} events`);
+  console.log(`[SyncService] Full sync for ${calendar.summary}: ${eventStores.length} events, ${pruned.length} pruned`);
+  return eventStores.length;
 }

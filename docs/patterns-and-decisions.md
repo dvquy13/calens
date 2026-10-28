@@ -806,25 +806,47 @@ Anyone with the publishable key can call `record_active_day` with made-up UUIDs 
 ## Local Event Store: Sync Integrity
 
 **Date:** 2026-10-28
-**Context:** Reports `0Tc4rugStVwYESSlSITj` and `RWFKOtUXLpdpMHrQ404N` showed "Event not found" for events Google still had. Two sync bugs deleted or skipped rows, and nothing ever re-fetched them.
+**Context:** Reports `0Tc4rugStVwYESSlSITj` and `RWFKOtUXLpdpMHrQ404N` showed "Event not found" for events Google still had. Sync bugs deleted or skipped rows, and nothing ever re-fetched them. PR #5 fixed those; the follow-up moved incremental sync to `syncToken`.
+
+#### Decision: Incremental Sync via `syncToken`
+
+Added 2026-10-28, replacing `updatedMin` + a client-clock `last_sync`, which could miss an event saved during a fetch. Facts verified live 2026-10-28:
+- A windowed list (`timeMin`/`timeMax`, `singleEvents=true`) returns `nextSyncToken` on its last page.
+- `?syncToken=` returns every change since then, including events outside the window, with deletions as `cancelled`.
+- `syncToken` plus `timeMin`/`updatedMin`/`orderBy` is a 400.
+- An expired token is a 410; a malformed one is a 400.
+
+Each calendar's `last_sync_<id>` metadata stores its `sync_token`.
+- A calendar without a token gets a full sync. That covers first sync, users upgrading from `updatedMin`, and a full sync that returned no token (warned in diagnostics).
+- A 410 (`SyncTokenExpiredError`) also gets a full sync, for that calendar only.
+- `calendar synced` logs `mode: token|full`, and the diagnostics report has a per-calendar `incremental_ready` flag. The token value is never logged.
+- Untargeted syncs (alarm, manual) first run `syncCalendarList`, so calendars selected later in Google are picked up. Targeted syncs skip it.
+
+#### Decision: One Full-Sync Path That Is Authoritative for Its Window
+
+`syncCalendarFull` (`calendar-reconciler.ts`) is the only full sync: sign-in, the resync after an update, a missing or expired token, and a newly selected calendar all use it. Its window is `syncWindow()`, one calendar year back and ahead. It:
+- upserts what Google returned;
+- prunes this calendar's stored rows that start inside the window and weren't returned. Rows outside the window stay, because token syncs can add them and the window can't vouch for them. Rows owned by another calendar are never considered;
+- replaces those events' tags with `deleteTagsForEvents()`. The tags store auto-increments, and appending duplicated every tag on each re-run, which doubled tag hours in `aggregateByTag`. This was fixed in PR #5.
 
 #### Decision: A Tombstone Only Deletes Its Own Calendar's Row
 
-The events store is keyed by event ID alone. Moving an event to another calendar keeps its ID, and the source calendar's `updatedMin` list returns a `cancelled` tombstone for it (`google-calendar-dom.md`, "Event IDs"). `_doIncrementalSync` therefore deletes on `cancelled` only when the stored row's `calendar_id` is the calendar being synced; otherwise it logs `cancelled copy skipped: event lives in another calendar`. An event live in two calendars at once (a guest copy) is still one row, last write wins. That was already the case and is not addressed here.
+The events store is keyed by event ID alone. Moving an event to another calendar keeps its ID, and the source calendar returns a `cancelled` tombstone for it (`google-calendar-dom.md`, "Event IDs"). So a token sync deletes on `cancelled` only when the stored row's `calendar_id` is the calendar being synced; otherwise it logs `cancelled copy skipped: event lives in another calendar`. An event live in two calendars at once (a guest copy) is still one row, last write wins.
 
 #### Decision: `getEvents` Follows `nextPageToken`
 
-`CalendarService.getEvents` returns every page; `maxResults` is the page size. Before this, incremental sync (500 per page, oldest change first) silently dropped everything past the first page and still advanced `last_sync`. One user hit the cap 13 times in ~30h.
+`CalendarService.getEvents` returns every page; `maxResults` is the page size. Before PR #5, incremental sync (500 per page) silently dropped everything past the first page. One user hit the cap 13 times in ~30h.
 
 #### Decision: Full Resync After Every Extension Update
 
-`onInstalled` with reason `update` runs `performInitialSync` for the signed-in user (`resync after update` in diagnostics). Full sync otherwise only runs at sign-in, so rows lost by older versions would never come back. Initial and incremental syncs share `SyncService.syncChain`, so they never interleave. In dev, every extension reload counts as an update, so each reload triggers a resync.
+`onInstalled` with reason `update` runs `performInitialSync` for the signed-in user (`resync after update` in diagnostics), so rows lost by older versions come back. Initial and incremental syncs share `SyncService.syncChain`, so they never interleave. In dev, every extension reload counts as an update.
 
-**Known gaps:** per-calendar `syncCalendarFull` (a newly selected calendar) fetches `timeMax: now`, so it gets no future events until they change; rows Google no longer lists are not pruned (`upsert` only); `last_sync` is the client clock after the fetch (see the comment in `sync-service.ts`).
+**Known gap:** calendars whose `calendarList` entry omits `selected` are synced. Google documents the default as false, so these are probably hidden in the UI. Seen live 2026-10-28 on 1 of 13 calendars. `doInitialSync` and `syncCalendarList` both use `selected !== false`.
 
 #### Related Files
 
-- `src/lib/sync/sync-service.ts`—incremental tombstone guard, sync chain
-- `src/lib/calendar-service.ts`—paginated `getEvents`
+- `src/lib/sync/sync-service.ts`—token sync, tombstone guard, sync chain
+- `src/lib/sync/calendar-reconciler.ts`—`syncCalendarFull`, `syncWindow`, `syncCalendarList`
+- `src/lib/calendar-service.ts`—paginated `getEvents`, `SyncTokenExpiredError`
 - `src/background/index.ts`—`resyncAfterUpdate()`
-- `src/lib/sync/sync-service.test.ts`, `src/lib/calendar-service.test.ts`—regression tests
+- `src/lib/sync/sync-service.test.ts`, `src/lib/sync/calendar-reconciler.test.ts`, `src/lib/calendar-service.test.ts`—regression tests

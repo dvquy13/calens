@@ -143,3 +143,128 @@ describe('SyncService.performIncrementalSync concurrency', () => {
     expect(calendarService.getEvents).toHaveBeenCalledTimes(2);
   });
 });
+
+/**
+ * Regression: moving an event to another calendar keeps its ID. The old
+ * calendar's incremental run returns a `cancelled` tombstone for that ID, and
+ * deleting by ID wiped the copy the new calendar had just stored.
+ */
+function makeStoringDb(calendars: ReturnType<typeof makeCalendar>[]) {
+  const events = new Map<string, { id: string; calendar_id: string }>();
+  return {
+    events,
+    getUserCalendars: vi.fn().mockResolvedValue(calendars),
+    getUserMetadata: vi.fn().mockResolvedValue({
+      value: { last_sync: new Date(Date.now() - 3600_000) },
+    }),
+    getEvent: vi.fn(async (id: string) => events.get(id)),
+    createEvent: vi.fn(async (e: { id: string; calendar_id: string }) => { events.set(e.id, e); }),
+    updateEvent: vi.fn(async (e: { id: string; calendar_id: string }) => { events.set(e.id, e); }),
+    deleteEvent: vi.fn(async (id: string) => { events.delete(id); }),
+    deleteEventTags: vi.fn().mockResolvedValue(undefined),
+    batchCreateTags: vi.fn().mockResolvedValue(undefined),
+    setUserMetadata: vi.fn().mockResolvedValue(undefined),
+  };
+}
+
+const MOVED_ID = 'moved-event-1';
+
+function googleEvent(id: string, status: string) {
+  return {
+    id,
+    status,
+    summary: 'Moved',
+    start: { dateTime: '2026-10-28T10:00:00Z' },
+    end: { dateTime: '2026-10-28T11:00:00Z' },
+    created: '2026-10-01T00:00:00Z',
+    updated: '2026-10-28T09:00:00Z',
+  };
+}
+
+describe('SyncService.performIncrementalSync moved events', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  it('keeps an event moved to another calendar when the old calendar sends a cancelled tombstone', async () => {
+    // Group calendar first, so its confirmed copy is stored before the primary's tombstone.
+    const db = makeStoringDb([makeCalendar(GROUP_ID, 'Produce'), makeCalendar(PRIMARY_ID, 'someone@gmail.com')]);
+    const calendarService = {
+      getEvents: vi.fn(async (calendarId: string) =>
+        calendarId === GROUP_ID
+          ? { items: [googleEvent(MOVED_ID, 'confirmed')] }
+          : { items: [googleEvent(MOVED_ID, 'cancelled')] }
+      ),
+    };
+    const service = new SyncService(
+      calendarService as unknown as CalendarService,
+      db as unknown as CalendarDatabase
+    );
+
+    await service.performIncrementalSync(USER);
+
+    expect(db.events.get(MOVED_ID)?.calendar_id).toBe(GROUP_ID);
+    expect(db.deleteEvent).not.toHaveBeenCalled();
+    // One call comes from the confirmed upsert (delete old tags, insert new); the tombstone adds none.
+    expect(db.deleteEventTags).toHaveBeenCalledTimes(1);
+  });
+
+  it('still deletes a cancelled event that is stored in the calendar that cancelled it', async () => {
+    const db = makeStoringDb([makeCalendar(PRIMARY_ID, 'someone@gmail.com')]);
+    db.events.set(MOVED_ID, { id: MOVED_ID, calendar_id: PRIMARY_ID });
+    const calendarService = {
+      getEvents: vi.fn().mockResolvedValue({ items: [googleEvent(MOVED_ID, 'cancelled')] }),
+    };
+    const service = new SyncService(
+      calendarService as unknown as CalendarService,
+      db as unknown as CalendarDatabase
+    );
+
+    await service.performIncrementalSync(USER);
+
+    expect(db.events.has(MOVED_ID)).toBe(false);
+    expect(db.deleteEvent).toHaveBeenCalledWith(MOVED_ID);
+    expect(db.deleteEventTags).toHaveBeenCalledWith(MOVED_ID);
+  });
+});
+
+/**
+ * Regression: performInitialSync bypassed syncChain, so it could interleave with
+ * an incremental sync that was already running.
+ */
+describe('SyncService initial and incremental syncs', () => {
+  it('runs an initial sync and a following incremental sync one at a time', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const db = {
+      ...makeStoringDb([makeCalendar(PRIMARY_ID, 'someone@gmail.com')]),
+      batchCreateCalendars: vi.fn().mockResolvedValue(undefined),
+      batchCreateEvents: vi.fn().mockResolvedValue(undefined),
+    };
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const track = async <T,>(value: T): Promise<T> => {
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight--;
+      return value;
+    };
+    const calendarService = {
+      getCalendars: vi.fn(() => track([{ id: PRIMARY_ID, summary: 'someone@gmail.com', primary: true }])),
+      getEvents: vi.fn((_calendarId: string) => track({ items: [] })),
+    };
+    const service = new SyncService(
+      calendarService as unknown as CalendarService,
+      db as unknown as CalendarDatabase
+    );
+
+    await Promise.all([
+      service.performInitialSync(USER),
+      service.performIncrementalSync(USER),
+    ]);
+
+    expect(calendarService.getCalendars).toHaveBeenCalledTimes(1);
+    expect(calendarService.getEvents).toHaveBeenCalledTimes(2);
+    expect(maxInFlight).toBe(1);
+  });
+});

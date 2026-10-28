@@ -3,7 +3,7 @@
  * Manages drag operations for resizing events from the top edge
  */
 
-import { extractStartTime, addMinutes, formatTimeAs } from './time-parser';
+import { extractStartTime, extractStartOnlyTime, addMinutes, formatTimeAs } from './time-parser';
 import { showSavingToast, showSuccessToast, showErrorToast, hideSavingToast } from './toast';
 import { findEventElementAtPoint } from './event-hit-tester';
 import { resolveEventForClick } from './click-event-resolver';
@@ -27,6 +27,26 @@ interface DragRequest {
   originalHeight: number;
 }
 
+/**
+ * Finds the Text node that holds the chip's start time. Tall chips keep
+ * "11:00 – 13:00" in `.gVNoLb` ('range'); short chips (about 40 min and under)
+ * have no `.gVNoLb` and show the start alone in `.EWOIrf` ('compact'). The Text
+ * node is returned, not its element, so a location text node beside it survives
+ * a rewrite. See docs/google-calendar-dom.md "Grid structure".
+ *
+ * FRAGILE: Relies on Google's obfuscated class names.
+ */
+function findTimeText(chip: HTMLElement): { node: Text; layout: 'range' | 'compact' } | null {
+  const firstTextNode = (el: Element | null): Text | null =>
+    (Array.from(el?.childNodes ?? []).find((n) => n.nodeType === Node.TEXT_NODE) as Text | undefined) ?? null;
+
+  const rangeNode = firstTextNode(chip.querySelector('.gVNoLb'));
+  if (rangeNode) return { node: rangeNode, layout: 'range' };
+  const compactNode = firstTextNode(chip.querySelector('.EWOIrf'));
+  if (compactNode) return { node: compactNode, layout: 'compact' };
+  return null;
+}
+
 /** Puts a tile back where it was before the drag, with its time text. Used on failure and on cancel. */
 function revertTile(eventElement: HTMLElement, top: number, height: number): void {
   delete (eventElement as any)._pcaDesiredTop;
@@ -38,9 +58,9 @@ function revertTile(eventElement: HTMLElement, top: number, height: number): voi
   eventElement.removeAttribute('data-pca-pending');
   eventElement.style.opacity = '';
 
-  const timeEl = eventElement.querySelector('.gVNoLb') as HTMLElement | null;
-  if (timeEl && (eventElement as any)._pcaOriginalTimeText) {
-    timeEl.textContent = (eventElement as any)._pcaOriginalTimeText;
+  const timeText = findTimeText(eventElement);
+  if (timeText && (eventElement as any)._pcaOriginalTimeText) {
+    timeText.node.textContent = (eventElement as any)._pcaOriginalTimeText;
   }
   delete (eventElement as any)._pcaOriginalTimeText;
 }
@@ -103,26 +123,26 @@ function initDrag(e: MouseEvent, eventElement: HTMLElement) {
 
   // Get event ID for error reporting
   const eventId = getEventId(eventElement);
-  diagContent('drag', 'info', 'drag start', { eventId });
 
-  // Find and store time element reference
-  const timeElement = eventElement.querySelector('.gVNoLb') as HTMLElement | null;
-  const originalTimeText = timeElement?.textContent || '';
+  // Find and store time text node reference
+  const timeText = findTimeText(eventElement);
+  const originalTimeText = timeText?.node.textContent || '';
+  diagContent('drag', 'info', 'drag start', { eventId, layout: timeText?.layout ?? null });
 
-  if (!timeElement) {
-    console.warn('[Event Enhancer] Time element (.gVNoLb) not found for event', eventId, '- time display updates disabled');
+  if (!timeText) {
+    console.warn('[Event Enhancer] Time text (.gVNoLb or .EWOIrf) not found for event', eventId, '- time display updates disabled');
     diagContent('drag', 'warn', 'initDrag:missingTimeElement', { eventId });
     if (eventId) {
       showErrorToast(eventId, 'Time display update failed: element not found');
     }
   }
 
-  const parsedStart = extractStartTime(originalTimeText);
+  const parsedStart = timeText?.layout === 'compact' ? extractStartOnlyTime(originalTimeText) : extractStartTime(originalTimeText);
 
   if (!parsedStart) {
     console.warn('[Event Enhancer] Could not parse time text:', originalTimeText, 'for event', eventId, '- time display updates disabled');
     diagContent('drag', 'warn', 'initDrag:unparseableTime', { eventId, originalTimeText });
-    if (timeElement && eventId) {
+    if (timeText && eventId) {
       showErrorToast(eventId, 'Time display update failed: could not parse time format');
     }
   }
@@ -131,7 +151,7 @@ function initDrag(e: MouseEvent, eventElement: HTMLElement) {
   // not hijack the mousedown -- otherwise a click that merely lands over
   // this tile (e.g. a Google dialog button rendered on top of it) gets its
   // click silently swallowed by the mouseup handler's click-blocker below.
-  if (!timeElement || !parsedStart) {
+  if (!timeText || !parsedStart) {
     return;
   }
 
@@ -161,11 +181,11 @@ function initDrag(e: MouseEvent, eventElement: HTMLElement) {
     }
 
     // Update time display
-    if (timeElement && parsedStart) {
+    if (timeText && parsedStart) {
       const minutesShift = (snappedDeltaY / PIXELS_PER_HOUR) * 60;
       const newTime = addMinutes(parsedStart.hours, parsedStart.minutes, minutesShift);
       const newStartStr = formatTimeAs(newTime.hours, newTime.minutes, parsedStart.is12h);
-      timeElement.textContent = originalTimeText.replace(parsedStart.match, newStartStr);
+      timeText.node.textContent = originalTimeText.replace(parsedStart.match, newStartStr);
     }
   };
 
@@ -243,9 +263,7 @@ function initDrag(e: MouseEvent, eventElement: HTMLElement) {
 
     // If no change, restore original time and clean up
     if (snappedDeltaY === 0) {
-      if (timeElement) {
-        timeElement.textContent = originalTimeText;
-      }
+      timeText.node.textContent = originalTimeText;
       delete (eventElement as any)._pcaOriginalTimeText;
     }
   };

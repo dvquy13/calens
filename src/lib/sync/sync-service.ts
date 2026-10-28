@@ -56,7 +56,12 @@ export class SyncService {
     userEmail: string,
     onProgress?: (message: string, percent: number) => void
   ): Promise<void> {
-    return this.runLogged('initial', { mode: 'all' }, () => this.doInitialSync(userEmail, onProgress));
+    // Share the chain with incremental syncs so the two never interleave.
+    const run = this.syncChain.then(() =>
+      this.runLogged('initial', { mode: 'all' }, () => this.doInitialSync(userEmail, onProgress))
+    );
+    this.syncChain = run.catch(() => {});
+    return run;
   }
 
   private async doInitialSync(
@@ -219,6 +224,16 @@ export class SyncService {
       // Process updates: created, modified, or deleted
       for (const googleEvent of updatedGoogleEvents) {
         if (googleEvent.status === 'cancelled') {
+          // A move keeps the event ID, so the old calendar's tombstone can arrive
+          // after the new calendar stored the event. Keep that copy.
+          const existing = await this.db.getEvent(googleEvent.id);
+          if (existing && existing.calendar_id !== calendar.id) {
+            diag('sync', 'info', 'cancelled copy skipped: event lives in another calendar', {
+              eventId: googleEvent.id,
+              calendarId: calendar.id,
+            });
+            continue;
+          }
           // Event was deleted - remove event and its tags
           await this.db.deleteEvent(googleEvent.id);
           await this.db.deleteEventTags(googleEvent.id);

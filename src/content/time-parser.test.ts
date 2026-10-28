@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractStartTime, addMinutes, formatTimeAs } from './time-parser';
+import { extractStartTime, extractStartOnlyTime, addMinutes, formatTimeAs } from './time-parser';
 
 describe('extractStartTime', () => {
   describe('24h with minutes', () => {
@@ -113,6 +113,33 @@ describe('extractStartTime', () => {
     it('returns null for "10:30-11a" (hyphen separator)', () => {
       expect(extractStartTime('10:30-11a')).toBeNull();
     });
+  });
+});
+
+describe('extractStartOnlyTime', () => {
+  it('parses 24h "18:00" and "9:05"', () => {
+    expect(extractStartOnlyTime('18:00')).toEqual({ match: '18:00', hours: 18, minutes: 0, is12h: false });
+    expect(extractStartOnlyTime('9:05')).toEqual({ match: '9:05', hours: 9, minutes: 5, is12h: false });
+  });
+
+  it('parses 12h "6pm" and "6:30pm"', () => {
+    expect(extractStartOnlyTime('6pm')).toEqual({ match: '6pm', hours: 18, minutes: 0, is12h: true });
+    expect(extractStartOnlyTime('6:30pm')).toEqual({ match: '6:30pm', hours: 18, minutes: 30, is12h: true });
+  });
+
+  it('maps "12am" to 0:00 and "12pm" to 12:00', () => {
+    expect(extractStartOnlyTime('12am')).toEqual({ match: '12am', hours: 0, minutes: 0, is12h: true });
+    expect(extractStartOnlyTime('12pm')).toEqual({ match: '12pm', hours: 12, minutes: 0, is12h: true });
+  });
+
+  it('returns null for a bare hour with no meridiem', () => {
+    expect(extractStartOnlyTime('9')).toBeNull();
+  });
+
+  it('returns null for ranges and empty text', () => {
+    expect(extractStartOnlyTime('10:30-11a')).toBeNull();
+    expect(extractStartOnlyTime('18:00 – 19:00')).toBeNull();
+    expect(extractStartOnlyTime('')).toBeNull();
   });
 });
 

@@ -27,6 +27,19 @@ export function eventBlockHtml(opts: { id?: string; encodedEventId: string; labe
   );
 }
 
+/**
+ * Inner markup of a short event chip (about 40 min and under): no `.gVNoLb`; the
+ * start time alone is the first text node of `span.EWOIrf`, after the title and
+ * its ", " separator. Pass as `eventBlockHtml`'s `label`. See docs/google-calendar-dom.md "Grid structure".
+ */
+export function compactChipLabel(startTime: string, title = 'Standup'): string {
+  return (
+    `<div class="Jcb6qd"><div class="fFwDnf"><div class="lhydbb RIOtYe"><div>` +
+    `<span class="I0UMhf">${title}</span><span class="pttLke">, </span><span class="EWOIrf">${startTime}</span>` +
+    `</div></div></div></div>`
+  );
+}
+
 /** Quick-create dialog (ids: create-dialog, title, save): [role=dialog] with inner data-eventid div, title input, Save and Close. See docs/google-calendar-dom.md "Create (quick-create) flow". */
 export function createDialogHtml(opts: { encodedEventId: string }): string {
   return (

@@ -108,6 +108,38 @@ function navigateTab(tabId: number, url: string) {
 installSwErrorCapture();
 installSwLifecycleLogging();
 
+/**
+ * Re-pull the signed-in user's calendars after an update, so rows lost by older
+ * versions (e.g. events past the old single-page limit) come back.
+ */
+async function resyncAfterUpdate(): Promise<void> {
+  try {
+    const storage = await chrome.storage.local.get('google_user');
+    const user = storage.google_user ? JSON.parse(storage.google_user) : null;
+    const userEmail = user?.email;
+
+    if (!userEmail) {
+      console.log('[Background] No authenticated user, skipping resync after update');
+      return;
+    }
+
+    diag('sync', 'info', 'resync after update');
+    chrome.runtime.sendMessage({
+      type: MessageType.SYNC_STARTED,
+      syncType: 'initial'
+    }).catch(() => {});
+
+    const service = await getSyncService();
+    await service.performInitialSync(userEmail);
+    console.log('[Background] Resync after update completed successfully');
+
+    chrome.runtime.sendMessage({ type: MessageType.SYNC_COMPLETE }).catch(() => {});
+  } catch (error) {
+    // runLogged already diag-logs sync failures; this covers the rest.
+    console.error('[Background] Resync after update failed:', error);
+  }
+}
+
 // On extension install/update, create alarm
 chrome.runtime.onInstalled.addListener((details) => {
   chrome.alarms.create('incrementalSync', { periodInMinutes: 15 });
@@ -117,6 +149,8 @@ chrome.runtime.onInstalled.addListener((details) => {
     // Subscription gating was removed; drop the state older versions cached.
     chrome.storage.local.remove(['subscription_status', 'subscription_status_timestamp', 'remote_config_cache'])
       .catch((error) => console.error('[Background] Failed to clear legacy subscription cache:', error));
+
+    void resyncAfterUpdate();
   }
 });
 
